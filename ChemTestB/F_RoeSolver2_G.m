@@ -20,7 +20,7 @@ UyRoe = (rhoLsqrt .* UyL + rhoRsqrt.* UyR)./rhoLRsqrtSum;
 HRoe  = (rhoLsqrt .* HL + rhoRsqrt.* HR)./rhoLRsqrtSum;
 UsqrRoe = UxRoe.^2 + UyRoe.^2;
 asqrRoe = gammaM1Mean .* (HRoe - 0.5 * UsqrRoe);
-if(sum(asqrRoe<0)>0)
+if(sum(asqrRoe>0)~=numel(asqrRoe))
    error('imag a');
 end
 aRoe = sqrt(asqrRoe);

@@ -1,10 +1,10 @@
 clear;
 %%
 N = 100;
-see = 10;
-uEst = 600;
-CFLest = 0.01;
-
+see = 100;
+uEst = 1000;
+CFLest = 1;
+tmax = 100;
 
 G.xs = linspace(0,1,N+1);
 G.hc = G.xs(2:end) - G.xs(1:end-1);
@@ -16,7 +16,7 @@ G.hLeft = G.xc - G.xc(G.iLeft);
 G.hRight = G.xc(G.iRight) - G.xc;
 G.hmax = max(G.hc);
 dt = CFLest * G.hmax / uEst;
-niter = round(1/uEst/dt);
+niter = round(tmax/uEst/dt);
 
 chemData7_8M;
 M.names = names;
@@ -28,29 +28,34 @@ M.ABCABC = ABCABC;
 %%
 rhoA = 1;
 vxA = 0;
-TA = 1000;
+TA = 300;
 YA = Ms.*([2 1 0 0 0 0 7]');
 YA = YA/sum(YA);
-
-rhoYA = rhoA * YA;
-EA = rhoA .* (f_ustatic_fit(rhoA,TA,YA,M.Ms,M.asA,M.asB) + vxA.^2 * 0.5);
-
-uA = [rhoA;rhoA.*vxA; rhoA*0;EA;rhoYA(1:end-1,:)];
-gM1A = f_gammM1_fit(rhoA,TA,YA,M.Ms,M.asA,M.asB);
-pA = f_DaltonPressureSum(rhoA,YA,M.Ms,TA);
-aA = sqrt((gM1A+1) .* pA./rhoA);
+[uA,aA] = f_ruty2cons(rhoA, vxA, TA, YA, M);
+[uB,aB] = f_ruty2cons(rhoA, vxA, TA * 3, YA, M);
 
 %%
 ns = numel(names);
 u0 = uA*ones(1,N);
 T0 = TA*ones(1,N);
-dudt0 = frhs(u0,T0,G,M);
 
+
+rg1 = G.ithis( G.xc > 0.4 & G.xc < 0.6);
+u0(:,rg1) = uB * ones(1,numel(rg1));
+
+
+dudt0 = frhs(u0,T0,G,M);
 u = u0;
 T = T0;
 
+
 %%
 t = 0;
+figure(1);
+f1 = gca;
+figure(2);
+f2 = gca;
+
 for iter = 1:niter
     
     
@@ -63,8 +68,12 @@ for iter = 1:niter
     t = t+dt;
     if mod(iter,see) == 0
         Ys = f_getYs(u);
-        plot(G.xc, Ys);
-        title(sprintf("t=%f",t));
+        
+        
+        plot(f1,G.xc, Ys);
+        title(sprintf("Ys t=%f",t));
+        plot(f2,G.xc, u(1,:));
+        title(sprintf("rho t=%f",t));
         drawnow;
         
     end
@@ -138,7 +147,7 @@ source = zeros(size(u));
 source(5:end,:) = omega_chem(1:end-1,:);
 
 
-dudt = source + ...
+dudt = source * 0 + ...
     -fLe_flux + fLe_flux(:, G.iRight);
 
 

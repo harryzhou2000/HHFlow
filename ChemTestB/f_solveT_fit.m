@@ -18,17 +18,18 @@ ustaticC = e - 0.5 * vsqr;
 fdustaticdT = @(Tc) f_Cp_fit(rho,Tc,Ys,Ms,asA,asB) - f_DaltonPressureSum(rho, Ys, Ms, Tc)./rho./Tc;
 
 
-for iter = 1:200
+for iter = 1:100
    dT = (ustaticC-fustatic(T))./fdustaticdT(T);
    dTnorm = norm(dT,inf);
    T = T + dT;
    if(iter == 1)
        dTnorm0 = dTnorm;
    end
-   if(dTnorm <= dTnorm0 * 1e-4)
+   if(dTnorm <= dTnorm0 * 1e-4 || norm(dT,inf) < 1e-3)
       break; 
    end
 end
+fprintf("f_solveT iters: %d\n", iter);
 
 stat = iter;
 
