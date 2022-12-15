@@ -98,8 +98,8 @@ asB = [...
 asA = [asA(:,end),asA(:,1:end-1)];
 asB = [asB(:,end),asB(:,1:end-1)];
 
-asB(:,1) = asB(:,1) - asA(:,1);
-asA(:,1) = 0; %zero zero - start fit
+% asB(:,1) = asB(:,1) - asA(:,1);
+% asA(:,1) = 0; %zero zero - start fit !bad!
 
 % asA(:,1) = 0;
 % asB(:,1) = 0;

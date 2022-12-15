@@ -19,17 +19,22 @@ fdustaticdT = @(Tc) f_Cp_fit(rho,Tc,Ys,Ms,asA,asB) - f_DaltonPressureSum(rho, Ys
 
 
 for iter = 1:100
-   dT = (ustaticC-fustatic(T))./fdustaticdT(T);
-   dTnorm = norm(dT,inf);
-   T = T + dT;
-   if(iter == 1)
-       dTnorm0 = dTnorm;
-   end
-   if(dTnorm <= dTnorm0 * 1e-4 || norm(dT,inf) < 1e-3)
-      break; 
-   end
+    dT = (ustaticC-fustatic(T))./fdustaticdT(T);
+    dTnorm = norm(dT,inf);
+    T = T + dT;
+    if(iter == 1)
+        dTnorm0 = dTnorm;
+    end
+    if(dTnorm <= dTnorm0 * 1e-3 || norm(dT,inf) < 1e-3)
+        break;
+    end
 end
-fprintf("f_solveT iters: %d\n", iter);
+if (iter > 10)
+    fprintf("f_solveT iters: %d\n", iter);
+end
+if(iter >= 100 && norm(dT,inf) > 1)
+    error('did not converge');
+end
 
 stat = iter;
 
