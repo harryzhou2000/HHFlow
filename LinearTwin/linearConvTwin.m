@@ -2,10 +2,10 @@ clear;
 
 %1-D linear convection with osciliations
 a = 1;
-omega = 2*pi * 1;
+omega = 2*pi * 10;
     
 %0=backEuler, 1=sdirk4, 2=rk2, 3=AM4
-odeMethod = -2;
+odeMethod = -4;
 see = 10;
 CFL = 0.5;
 CFLin = 1e200;

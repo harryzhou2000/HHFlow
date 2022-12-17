@@ -8,7 +8,7 @@ N = numel(u);
 maxiter= 100;
 innerTh = 1e-3;
 
-for ip = 1:nprev
+for ip = 1:(nprev-2)
    assert(dtPrev(ip) == dt);
 end
 
@@ -33,10 +33,10 @@ for iter = 1:maxiter
     mat = J* coefs{nprev+1}(1) + spdiags(1./dtau(:), 0,N,N) + speye(N,N)*(1/dt);
 %     condest(mat)
 %     max(eigs(J))
-    %         du = mat\rhs;
-    [matL,matU,matP,matQ] = lu(mat);
-    duS = matL\(matP*rhs);
-    du = matQ*(matU\duS);
+            du = mat\rhs;
+%     [matL,matU,matP,matQ] = lu(mat);
+%     duS = matL\(matP*rhs);
+%     du = matQ*(matU\duS);
     
     uc = uc + du;
     res = sum(abs(du(:)));
@@ -46,7 +46,7 @@ for iter = 1:maxiter
     end
     resr = res/res0;
     fprintf("   === odeAM4 resrInner %d: %.3e\n", iter, resr);
-    if(resr < innerTh)
+    if(resr < innerTh || norm(rhs,inf)/norm(rhs,inf) * dt < 1e-16)
         break;
     end
 end

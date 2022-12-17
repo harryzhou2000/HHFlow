@@ -4,8 +4,8 @@ Ys = f_getYs(u);
 ps = {};
 % f1
 ps{end+1} = plot(f1,G.xc, Ys);
-title(sprintf("Ys t=%f",t));
-legend(M.names);
+title(f1,sprintf("Ys t=%f",t));
+legend(f1,M.names);
 
 %f2
 yyaxis(f2,'left');
@@ -14,5 +14,5 @@ yyaxis(f2,'right');
 ps{end+1} = plot(f2,G.xc, T, 'DisplayName', 'T');
 legend;
 
-title(sprintf("rho t=%f",t));
+title(f2,sprintf("rho t=%f",t));
 drawnow;

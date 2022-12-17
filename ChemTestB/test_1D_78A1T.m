@@ -1,10 +1,12 @@
 % clear;
+
+% runMode = 0; % 0 for matlab, 1 for mex, 2 for mex + gpu
 %%
-N = 200;
-see = 10;
+N = 2000;
+see = 100;
 uEst = 1000;
-CFLest = 0.01;
-tmax = 0.5;
+CFLest = 0.05;
+tmax = 0.2;
 
 G.xs = linspace(0,1,N+1);
 G.hc = G.xs(2:end) - G.xs(1:end-1);
@@ -52,9 +54,9 @@ T = T0;
 %%
 t = 0;
 figure(1);
-f1 = gca;
+clf;f1 = gca;
 figure(2);
-f2 = gca;
+clf;f2 = gca;
 
 for iter = 1:niter
     
@@ -68,11 +70,11 @@ for iter = 1:niter
     dudt =  frhs(u_m0,T,G,M);
     u_m1 = u_m0 + dudt * dt;
     [T,p, stat] = f_solveT_fit(T,f_getYs(u_m1),u_m1,M.Ms,M.asA, M.asB);
-    dudt1 = frhs(u_m1,T,G,M) - S2 + frhs_source(u_m1, T,G,M);
+    dudt1 = frhs(u_m1,T,G,M)  + (- S2 + frhs_source(u_m1,T,G,M)) * 0;
     unew = 0.5 * u_m0 + 0.5 * u_m1 + 0.5 * dudt1 * dt;
     
     if(~isreal(unew))
-       error('complex!');
+        error('complex!');
     end
     
     
@@ -82,7 +84,7 @@ for iter = 1:niter
     
     if mod(iter,see) == 0
         plot1DMain(u,T, G, M,f1, f2,t);
-        
+        fprintf("TS %d\n", iter);
     end
     
 end
@@ -127,14 +129,14 @@ fLe_fluxInv = F_RoeSolver2_G(fLe_uLe,fLe_uRi,fLe_pLe,fLe_pRi, fLe_gammaM);
 % viscous part:
 % !! using constant dissipation coefficients now!
 
-fLe_mu = 1e-2; %total vis
-fLe_eta = 1e-2; %total cond
+fLe_mu = 1e-20; %total vis
+fLe_eta = 1e-20; %total cond
 Sc = 0.5;
 Xs = f_getXs(Ys, M.Ms);
 fLe_rhoDs = ((1-fLe_YsM) .* fLe_mu) ./ ((1 - Xs) * Sc);
 
-fLe_dudx = 0.5 * (dudxC + dudxC(:,G.iLeft));
-fLe_dTdx = 0.5 * (dTdxC + dTdxC(:,G.iLeft));
+fLe_dudx = 0.5 * (dudxC + dudxC(:,G.iLeft)) + (fLe_uRi - fLe_uLe)./(2 * G.hLeft);
+fLe_dTdx = 0.5 * (dTdxC + dTdxC(:,G.iLeft)) + (fLe_TRi - fLe_TLe)./(2 * G.hLeft);
 
 fLe_hs = f_fitAbsoluteHeat(fLe_TM,M.asA,M.asB);
 
@@ -181,36 +183,45 @@ Ys = f_getYs(u);
 
 rhoYs = u(1,:) .* Ys;
 ns = rhoYs./M.Ms;
+% d_omega_chem = f_doNChem(ns, kf, kb, M.nuf, M.nub, M.Ctri, M.Ntri) .* ...
+%     reshape(M.Ms,[],1,1) ./ reshape(M.Ms,1,[],1);
 d_omega_chem = f_doNChem(ns, kf, kb, M.nuf, M.nub, M.Ctri, M.Ntri) .* ...
     reshape(M.Ms,[],1,1) ./ reshape(M.Ms,1,[],1);
 
-for i = 1:nG
-    dudt_source_jacobian(5:end,5:end,i) = d_omega_chem(1:end-1,1:end-1, i);
-    %     dudt_source_jacobian(:,:,i) = dudt_source_jacobian(:,:,i) + eye(nv,nv) * 1e-200;
-end
+% for i = 1:nG
+%     dudt_source_jacobian(5:end,5:end,i) = d_omega_chem(1:end-1,1:end-1, i);
+%     %     dudt_source_jacobian(:,:,i) = dudt_source_jacobian(:,:,i) + eye(nv,nv) * 1e-200;
+% end
+dudt_source_jacobian(5:end,5:end,:) = d_omega_chem(1:end-1,1:end-1,:);
 
 end
 
 function dus = fsimple_implicit_sourcedt(u,T,G,M,dt)
-dus = zeros(size(u));
 nG = size(u,2);
 
 uc = u;
-N = 10;
-[T,p, stat] = f_solveT_fit(T,f_getYs(uc),uc,M.Ms,M.asA, M.asB);
+N = 5; Nin = 1;
+[T,~, ~] = f_solveT_fit(T,f_getYs(uc),uc,M.Ms,M.asA, M.asB);
 dus = zeros(size(u));
 for istep = 1:N
-    uc = u + dus;
-%     [T,p, stat] = f_solvseT_fit(T,f_getYs(uc),uc,M.Ms,M.asA, M.asB);
-    dudt_source = frhs_source(uc,T,G,M);
-    dudt_source_jacobian = fjacobians_source(uc,T,G,M);
-    if(~(isreal(dudt_source) && isreal(dudt_source_jacobian)))
-       error('complex'); 
-    end
     
-    for i = 1:nG
-        dus(:,i) = dus(:,i) + (eye(size(dus,1)) / dt - dudt_source_jacobian(:,:,i))\...
-            (dudt_source(:,i) - dus(:,i)/dt);
+%     [T,~, ~] = f_solveT_fit(T,f_getYs(uc),uc,M.Ms,M.asA, M.asB);
+    dudt_source_jacobian = fjacobians_source(uc,T,G,M);
+    dusincMat = repmat(eye(size(dus,1)) / dt,1,1,nG) - dudt_source_jacobian;
+    for iterIn = 1:Nin
+        dudt_source = frhs_source(uc,T,G,M);
+        if(~(isreal(dudt_source) && isreal(dudt_source_jacobian)))
+            error('complex');
+        end
+        dusincRhs = dudt_source - dus/dt;
+%         for i = 1:nG
+%             dus(:,i) = dus(:,i) + dusincMat(:,:,i)\...
+%                 dusincRhs(:,i);
+%         end
+        
+        dus = dus + m_solveDiags_mex(dusincMat,dusincRhs);
+%         dus = dus + m_solveDiags(dusincMat,dusincRhs);
+        uc = u + dus;
     end
     
 end
@@ -219,7 +230,7 @@ unew = dus + u;
 unewb = unew(5:end,:);
 minus = unewb < 0;
 if(sum(minus,'all'))
-%    error('minus out'); 
+    %    error('minus out');
 end
 
 
