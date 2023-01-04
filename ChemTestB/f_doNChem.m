@@ -26,7 +26,7 @@ ndiv = repmat(reshape(n,1, nS, nE) + 1e-200, nReaction,1,1);
 %     reshape(C.*L, nReaction, nS, 1) ./ (reshape(tbFactors,nReaction,1,nE) + 1e-200);
 dR = repmat(nuf,1,1,nE) ./ ndiv .* repmat(reshape(Rf,nReaction,1,nE),1,nS,1)...
     - repmat(nub,1,1,nE) ./ ndiv .* repmat(reshape(Rb,nReaction,1,nE),1,nS,1) +...
-    repmat(C.*repmat(L,1,nS), 1, 1, nE) ./ repmat((reshape(tbFactors,nReaction,1,nE) + 1e-200),1,nS,1);
+    0 * repmat(C.*repmat(L,1,nS), 1, 1, nE) ./ repmat((reshape(tbFactors,nReaction,1,nE) + 1e-200),1,nS,1);
 doN = (nub - nuf)' * reshape(dR, nReaction,[]);
 doN = reshape(doN, nS, nS, nE);
 

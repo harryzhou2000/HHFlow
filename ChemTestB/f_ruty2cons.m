@@ -1,4 +1,4 @@
-function [uA,aA] = f_ruty2cons(rhoA, vxA, TA, YA, M)
+function [uA,aA,pA] = f_ruty2cons(rhoA, vxA, TA, YA, M)
 
 rhoYA = rhoA * YA;
 EA = rhoA .* (f_ustatic_fit(rhoA,TA,YA,M.Ms,M.asA,M.asB) + vxA.^2 * 0.5);

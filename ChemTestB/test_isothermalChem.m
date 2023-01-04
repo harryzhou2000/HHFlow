@@ -19,7 +19,7 @@ plot(t,ns);
 legend(names);
 set(gca,'XScale','log');
 xlim([1e-10, 1e-5]);
-ylim([0,1e-1]);
+% ylim([0,1e-1]);
 %% Explicit
 n = n0;
 dt = 1e-10;

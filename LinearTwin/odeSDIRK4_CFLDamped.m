@@ -26,10 +26,18 @@ for iB = 1:3
         
         J = fjacobian(reshape(uc,usize));
         mat = J* butcherA(iB,iB) + spdiags(1./dtau(:), 0,N,N) + speye(N,N)*(1/dt);
-%         du = mat\rhs;
-        [matL,matU,matP,matQ] = lu(mat);
-        duS = matL\(matP*rhs);
-        du = matQ*(matU\duS);
+        %%solve
+        %         du = mat\rhs;
+        %%lusolve
+        %         [matL,matU,matP,matQ] = lu(mat);
+        %         duS = matL\(matP*rhs);
+        %         du = matQ*(matU\duS);
+        %%gmressovle + ilu0
+        setup.type = 'nofill';
+        [matL,matU] = ilu(mat,setup);
+        [du,gmresOut.flag,gmresOut.relres,gmresOut.iternum] = gmres(mat,rhs,10,1e-15,2,matL,matU);
+        
+        
         
         uc = uc + du;
         res = sum(abs(du(:)));
@@ -38,9 +46,17 @@ for iB = 1:3
             res0 = res;
         end
         resr = res/res0;
-        fprintf("   === odeSDIRK4 resrInner %d: %.3e\n", iter, resr);
-        if(resr < innerTh)
+        resrc = res/(sum(abs(rhss{iB}))*dt);
+        
+        fprintf("   === odeSDIRK4 resrInner %d: %.3e, %.3e\n", iter, resr, resrc);
+        %         if(resr < innerTh || resrc < innerTh)
+        if(resr < innerTh )
             break;
+        end
+    end
+    if iter == maxiter
+        if resr >=1
+            error("divergence in odeSDIRK4_CFLDamped!");
         end
     end
     
@@ -50,7 +66,7 @@ end
 
 unew = u;
 for jB = 1:3
-   unew = unew + rhss{jB} * dt *  butcherB(jB);
+    unew = unew + rhss{jB} * dt *  butcherB(jB);
 end
 unew = reshape(unew,usize);
 

@@ -2,13 +2,15 @@
 
 % runMode = 0; % 0 for matlab, 1 for mex, 2 for mex + gpu
 %%
-N = 2000;
-see = 100;
-uEst = 1000;
-CFLest = 0.05;
-tmax = 0.2;
+N = 2500;
+see = 10;
+uEst = 1500;
+CFLest = 0.5;
+tmax = 0.3;
+Lmax = 25e-2;
 
-G.xs = linspace(0,1,N+1);
+G.ifrec = 0;
+G.xs = linspace(0,Lmax,N+1);
 G.hc = G.xs(2:end) - G.xs(1:end-1);
 G.xc = 0.5 * (G.xs(2:end) + G.xs(1:end-1));
 G.ithis = 1:N;
@@ -17,10 +19,19 @@ G.iRight = circshift(G.ithis,-1);
 G.hLeft = G.xc - G.xc(G.iLeft);
 G.hRight = G.xc(G.iRight) - G.xc;
 G.hmax = max(G.hc);
+G.ibLeft = 1;
+G.ibRight = N;
+G.bndLeft = 1;
+G.bndRight = 2; % 1 for wall, 2 for frozen
+% warning, right bnd support unfinished!!
+
+
 dt = CFLest * G.hmax / uEst;
 niter = round(tmax/uEst/dt);
 
-chemData7_8M;
+% chemData7_8M;
+chemData7_8M_Argon;
+
 M.names = names;
 M.asA = asA; M.asB = asB;
 M.Ctri = Ctri; M.Ntri = Ntri;
@@ -28,22 +39,37 @@ M.nub = nub; M.nuf = nuf;
 M.Ms = Ms;
 M.ABCABC = ABCABC;
 %%
-rhoA = 1;
-vxA = 0;
-TA = 300;
-YA = Ms.*([2 1 0 0 0 0 7]');
-YA = YA/sum(YA);
-[uA,aA] = f_ruty2cons(rhoA, vxA, TA, YA, M);
-[uB,aB] = f_ruty2cons(rhoA, vxA, TA * 7, YA, M);
+% rhoA = 1;
+% vxA = 0;
+% vxB = 500;
+% TA = 300;
+% YA = Ms.*([2 1 0 0 0 0 7]');
+% YA = YA/sum(YA);
+% [uA,aA] = f_ruty2cons(rhoA, vxA, TA, YA, M);
+% [uB,aB] = f_ruty2cons(rhoA, vxB, TA * 7, YA, M);
+
+
+Y = Ms.*([2 1 0 0 0 0 7]');
+Y = Y/sum(Y);
+
+[uUp,aUp,rUp] = f_puty2cons(6600, 0, 298, Y, M);
+[uDown,aDown,pDown] = f_ruty2cons(0.224, -570, 800, Y, M);
 
 %%
 ns = numel(names);
-u0 = uA*ones(1,N);
-T0 = TA*ones(1,N);
 
 
-rg1 = G.ithis( G.xc > 0.4 & G.xc < 0.6);
-u0(:,rg1) = uB * ones(1,numel(rg1));
+% u0 = uA*ones(1,N);
+% T0 = TA*ones(1,N);
+% 
+% rg1 = G.ithis( G.xc > 0.4 & G.xc < 0.6);
+% u0(:,rg1) = uB * ones(1,numel(rg1));
+
+u0 = uUp*ones(1,N);
+T0 = 298*ones(1,N);
+
+rg1 = G.ithis( G.xc > 1e-2 );
+u0(:,rg1) = uDown * ones(1,numel(rg1));
 
 
 dudt0 = frhs(u0,T0,G,M);
@@ -57,21 +83,36 @@ figure(1);
 clf;f1 = gca;
 figure(2);
 clf;f2 = gca;
-
+figure(2);
 for iter = 1:niter
     
     % Method: inserted Crank-Nicolson
-    duS1 = fsimple_implicit_sourcedt(u,T,G,M,dt);
-    duS2 = fsimple_implicit_sourcedt(u+duS1,T,G,M,dt);
+    duS1 = fsimple_implicit_sourcedt(u,T,G,M,dt/100);
+    duS2 = fsimple_implicit_sourcedt(u+duS1,T,G,M,dt/2);
     S1  = frhs_source(u + duS1,T,G,M);
     S2  = frhs_source(u + duS1 + duS2,T,G,M);
-    u_m0 = u + duS1 + duS2;
+    u_m0 = u + duS1 + duS2 * 0;
     [T,p, stat] = f_solveT_fit(T,f_getYs(u_m0),u_m0,M.Ms,M.asA, M.asB);
     dudt =  frhs(u_m0,T,G,M);
     u_m1 = u_m0 + dudt * dt;
     [T,p, stat] = f_solveT_fit(T,f_getYs(u_m1),u_m1,M.Ms,M.asA, M.asB);
     dudt1 = frhs(u_m1,T,G,M)  + (- S2 + frhs_source(u_m1,T,G,M)) * 0;
     unew = 0.5 * u_m0 + 0.5 * u_m1 + 0.5 * dudt1 * dt;
+%     unew = u_m1;
+    
+    % Method: inserted Crank-Nicolson: split order revert
+    
+%     [T,p, stat] = f_solveT_fit(T,f_getYs(u),u,M.Ms,M.asA, M.asB);
+%     dudt =  frhs(u,T,G,M);
+%     u_m1 = u + dudt * dt;
+%     [T,p, stat] = f_solveT_fit(T,f_getYs(u_m1),u_m1,M.Ms,M.asA, M.asB);
+%     dudt1 = frhs(u_m1,T,G,M)  + (- S2 + frhs_source(u_m1,T,G,M)) * 0;
+%     unew_t = 0.5 * u + 0.5 * u_m1 + 0.5 * dudt1 * dt;
+%     
+%     duS1 = fsimple_implicit_sourcedt(unew_t,T,G,M,dt/2);
+%     duS2 = fsimple_implicit_sourcedt(unew_t+duS1,T,G,M,dt/2);
+%     unew = unew_t + duS1 + duS2;
+    
     
     if(~isreal(unew))
         error('complex!');
@@ -97,13 +138,33 @@ dudxC = F_TVD_Slope(dudxLe,dudxRi);
 
 Ys = f_getYs(u);
 
-
-
 dTdxLe = (T - T(:,G.iLeft))./G.hLeft;
 dTdxRi = -(T - T(:,G.iRight))./G.hRight;
 dTdxC = F_TVD_Slope(dTdxLe,dTdxRi);
 
-ifrec = 1;
+switch G.bndLeft
+    case 0
+    %nothing
+    case {1,2}
+        dudxC(:,G.ibLeft) = 0;
+        dTdxC(:,G.ibLeft) = 0;
+    otherwise
+        error('no bnd type');
+    
+end
+
+switch G.bndRight
+    case 0
+    %nothing
+    case {1,2}
+        dudxC(:,G.ibRight) = 0;
+        dTdxC(:,G.ibRight) = 0;
+    otherwise
+        error('no bnd type');
+    
+end
+
+ifrec = G.ifrec;
 TLe = T - dTdxC .* G.hc * 0.5 * ifrec;
 TRi = T + dTdxC .* G.hc * 0.5 * ifrec;
 uLe = u - dudxC .* G.hc * 0.5 * ifrec;
@@ -113,6 +174,18 @@ fLe_TRi = TLe;
 fLe_uRi = uLe;
 fLe_TLe = TRi(:,G.iLeft);
 fLe_uLe = uRi(:,G.iLeft);
+
+switch G.bndLeft
+    case {0,2}
+    %nothing
+    case {1}
+        fLe_TLe(:,G.ibLeft) = fLe_TRi(:,G.ibLeft);
+        fLe_uLe(:,G.ibLeft) = fLe_uRi(:,G.ibLeft);
+        fLe_uLe(2,G.ibLeft) = -fLe_uRi(2,G.ibLeft);
+    otherwise
+        error('no bnd type');
+    
+end
 
 fLe_YsLe = f_getYs(fLe_uLe);
 fLe_YsRi = f_getYs(fLe_uRi);
@@ -141,6 +214,7 @@ fLe_dTdx = 0.5 * (dTdxC + dTdxC(:,G.iLeft)) + (fLe_TRi - fLe_TLe)./(2 * G.hLeft)
 fLe_hs = f_fitAbsoluteHeat(fLe_TM,M.asA,M.asB);
 
 
+
 fLe_fluxVis = F_VisFlux_G(fLe_uLe, fLe_dudx, zeros(size(u)),...
     fLe_dTdx, fLe_YsM, M.Ms, fLe_hs, fLe_mu, fLe_eta,fLe_rhoDs);
 
@@ -151,7 +225,29 @@ fLe_flux = fLe_fluxVis - fLe_fluxInv;
 
 dudt =  ...
     (-fLe_flux + fLe_flux(:, G.iRight))./G.hc;
+switch G.bndLeft
+    case 0
+    %nothing
+    case 1
+    %nothing
+    case 2
+        dudt(:,G.ibLeft) = 0;
+    otherwise
+        error('no bnd type');
+    
+end
 
+switch G.bndRight
+    case 0
+    %nothing
+    case 1
+    %nothing
+    case 2
+        dudt(:,G.ibRight) = 0;
+    otherwise
+        error('no bnd type');
+    
+end
 
 end
 
@@ -169,6 +265,30 @@ source = zeros(size(u));
 source(5:end,:) = omega_chem(1:end-1,:);
 
 dudt_source = source;
+
+switch G.bndLeft
+    case 0
+    %nothing
+    case 1
+    %nothing
+    case 2
+        dudt_source(:,G.ibLeft) = 0;
+    otherwise
+        error('no bnd type');
+    
+end
+
+switch G.bndRight
+    case 0
+    %nothing
+    case 1
+    %nothing
+    case 2
+        dudt_source(:,G.ibRight) = 0;
+    otherwise
+        error('no bnd type');
+    
+end
 
 end
 
@@ -193,6 +313,8 @@ d_omega_chem = f_doNChem(ns, kf, kb, M.nuf, M.nub, M.Ctri, M.Ntri) .* ...
 %     %     dudt_source_jacobian(:,:,i) = dudt_source_jacobian(:,:,i) + eye(nv,nv) * 1e-200;
 % end
 dudt_source_jacobian(5:end,5:end,:) = d_omega_chem(1:end-1,1:end-1,:);
+
+
 
 end
 
