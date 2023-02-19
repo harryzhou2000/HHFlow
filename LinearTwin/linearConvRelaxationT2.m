@@ -7,15 +7,15 @@ omega = 1e10;
 tmax = 1;
     
 %0=backEuler, 1=sdirk4, 2=rk2, 3=AM4
-odeMethod = 0
+odeMethod = 4
 see = 10;
 CFL = 0.5;
 CFLin = 1e200;
 Tin = 0.1;
 N = 25 * 2;
 
-AMOrder = 1;
-
+AMOrder = 2;
+BDFOrder = 4;
 
 %%
 
@@ -60,6 +60,13 @@ uPrevAM{1} = u0; %actual
 uPrevAM{2} = u0; %virtual
 uPrevAM{3} = u0; %virtual
 dtPrevAM = [nan, nan, nan];
+
+uPrevBDF = cell(1,4);
+uPrevBDF{1} = u0(:); %actual
+uPrevBDF{2} = u0(:); %virtual
+uPrevBDF{3} = u0(:); %virtual
+uPrevBDF{4} = u0(:); %virtual
+dtPrevBDF = nan(4,1);
 
 for iter = 1:iterEnd
     
@@ -221,6 +228,14 @@ for iter = 1:iterEnd
                 @(u) CFLin * [hc;hc]/abs(a), ...
                 @(u) fjacobian(xc,u,hleft,hright,ileft,iright,hc,omega,a), ...
                 dt,rhsPrevAM,dtPrevAM, min(iter-1, AMOrder-1));
+        case 4
+            % BDF
+            [usnew, dtPrevBDF, uPrevBDF] =  ...
+                odeBDFFixed_CFLDamped(us,...
+                @(u) fdudt(xc,u,hleft,hright,ileft,iright,hc,omega,a),...
+                @(u) CFLin * [hc;hc]/abs(a), ...
+                @(u) fjacobian(xc,u,hleft,hright,ileft,iright,hc,omega,a), ...
+                dt,uPrevBDF,dtPrevBDF, min(iter, BDFOrder));
         case -3
             % AM
             usStarF = @(us,dt) [us(1,:) * cos(omega*dt) + us(2,:)/omega*sin(omega*dt);...
@@ -297,8 +312,8 @@ uright = us + aR + bR .* (hc/2) + cR.*(hc/2).^2;
 %
 
 % 0th
-uleft = us;
-uright = us;
+% uleft = us;
+% uright = us;
 
 fleft_uleft = uright(:,ileft);
 fleft_uright = uleft;
@@ -408,7 +423,7 @@ for iter = 1:innerMax
     mat = A * alphaDiag + spdiags(1./dtau(:) + PreDiag(:), 0,N*2,N*2) + speye(N*2,N*2)*(1/dt);
     rhs = getRHS(uNew) - 0*(uNew - us).*(1./dtau+reshape(PreDiag,size(dtau)));
 %     du = reshape(mat\rhs(:),size(uNew));
-    du = bLUSGS_naive(mat,rhs,2);
+    du = bLUSGS_naive(mat,rhs,2); % LUSGS version
     
     
     

@@ -30,7 +30,9 @@ for iter = 1:maxiter
     end
     
     J = fjacobian(reshape(uc,usize));
-    mat = J* coefs{nprev}(1) + spdiags(1./dtau(:), 0,N,N) + speye(N,N)*(1/dt);
+    [A_L,A_U,A_D] = bLUD(J,2);
+    dtauIFix = full(sum(abs(A_L+A_U+2*A_D),2))* coefs{nprev}(1);
+    mat = J* coefs{nprev}(1) + spdiags(1./dtau(:)+dtauIFix, 0,N,N) + speye(N,N)*(1/dt);
 %     condest(mat)
 %     max(eigs(J))
             du = mat\rhs;

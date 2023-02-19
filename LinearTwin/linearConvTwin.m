@@ -53,20 +53,23 @@ iterEnd = round(Tmax/dt);
 
 rhsPrevAM = cell(1,3);
 uPrevAM = cell(1,3);
-uPrevBDF = cell(1,4);
+
 uPrevAM{1} = u0; %actual
 uPrevAM{2} = u0; %virtual
 uPrevAM{3} = u0; %virtual
 
-uPrevBDF{1} = u0(:); %actual
-uPrevBDF{2} = u0(:); %virtual
-uPrevBDF{3} = u0(:); %virtual
-uPrevBDF{4} = u0(:); %virtual
+
 
 rhsPrevAM{1} = rhs0(:);
 rhsPrevAM{2} = rhs0(:);
 rhsPrevAM{3} = rhs0(:);
 dtPrevAM = [nan, nan, nan];
+
+uPrevBDF = cell(1,4);
+uPrevBDF{1} = u0(:); %actual
+uPrevBDF{2} = u0(:); %virtual
+uPrevBDF{3} = u0(:); %virtual
+uPrevBDF{4} = u0(:); %virtual
 dtPrevBDF = nan(4,1);
 
 for iter = 1:iterEnd
