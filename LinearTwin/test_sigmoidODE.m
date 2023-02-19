@@ -2,7 +2,7 @@
 AMorder = 1;
 
 %% sigmoid problem
-a = 50;
+a = 10;
 
 xana = @(t) 1./(1+exp(-a * t));
 x0 = xana(-2);
@@ -12,9 +12,9 @@ frhs_jacobi = @(t,x) (1-2*x) * a;
 tspan = [-2,2];
 
 %% bench
-options = odeset('Jacobian', frhs_jacobi,'InitialStep',1e-5,'MaxStep',1e-3,...
-    'RelTol',1e-6);
-[ts,xs] = ode(frhs, tspan, x0, options);
+options = odeset('Jacobian', frhs_jacobi,'InitialStep',1e-8,'MaxStep',1e-2,...
+    'RelTol',1e-8,'AbsTol',1e-8);
+[ts,xs] = ode15s(frhs, tspan, x0, options);
 plot(ts,xs,'-o',ts,xana(ts));
 
 %% AM

@@ -45,7 +45,7 @@ for iter = 1:maxiter
         res0 = res;
     end
     resr = res/res0;
-    fprintf("   === odeAM4 resrInner %d: %.3e\n", iter, resr);
+    fprintf("   === odeAM%d resrInner %d: %.3e\n",nprev+1, iter, resr);
     if(resr < innerTh || norm(rhs,inf)/norm(rhs,inf) * dt < 1e-16)
         break;
     end

@@ -5,9 +5,9 @@ a = 1;
 omega = 2*pi * 0;
     
 %0=backEuler, 1=sdirk4, 2=rk2, 3=AM4, 9=BDF
-odeMethod = 9;
+odeMethod = 1;
 see = 100;
-CFL = 0.5e3;
+CFL = 0.5e2;
 CFLin = 1e200;
 Tin = 0.1;
 Tmax = 10;

@@ -2,14 +2,14 @@ clear;
 
 %1-D linear convection with relaxation
 a = 1;
-omega = 500;
+omega = 1e10;
 
 tmax = 1;
     
 %0=backEuler, 1=sdirk4, 2=rk2, 3=AM4
-odeMethod = 0;
+odeMethod = 0
 see = 10;
-CFL = 0.05;
+CFL = 0.5;
 CFLin = 1e200;
 Tin = 0.1;
 N = 25 * 2;
@@ -42,6 +42,7 @@ dt = CFL * max(hc)/abs(a)
 dtInternal = 2*pi/omega * Tin
 t = 0;
 
+%%
 Apre = fjacobian(xc,us,hleft,hright,ileft,iright,hc,omega,a);
 ApreNosource = fjacobianNosource(xc,us,hleft,hright,ileft,iright,hc,omega,a);
 ApreOnlySource = fjacobianOnlysource(xc,us,hleft,hright,ileft,iright,hc,omega,a);
@@ -66,7 +67,7 @@ for iter = 1:iterEnd
         case 0
             %BackEuler
             usnew = CFLNewtonSolve(us,hc,a,...
-                dt,1e1, 1,...
+                dt,1, 1,...
                 @(uc) Apre, ...
                 @(uc) fdudt(xc,uc,hleft,hright,ileft,iright,hc,omega,a) + (us - uc)/dt...
                 );
@@ -101,8 +102,10 @@ for iter = 1:iterEnd
             usnew = vsnew + usStarNew;
             %BackEuler
         case -2
-            %Back2
+            %Back2 modified
             usStarF = @(us,dt) [us(2,:) + (us(1,:) - us(2,:)) * exp(-dt*omega);...
+                us(2,:)];
+            usStarFMean = @(us,dt) [us(2,:) + (us(1,:) - us(2,:)) * (1-exp(-dt*omega))/(dt*omega);...
                 us(2,:)];
             usStarNew = usStarF(us,dt);
             fluxDiffUstarNew = fdudtNosource(xc,usStarNew,hleft,hright,ileft,iright,hc,omega,a);
@@ -111,13 +114,10 @@ for iter = 1:iterEnd
             vsnew = CFLNewtonSolve(us * 0,hc,a,...
                 dt,1e3, 1,...
                 @(uc) ApreNosource * 0.5, ...
-                @(uc) fdudtNosource(xc,uc + usStarNew,hleft,hright,ileft,iright,hc,omega,a)*0.5 + (- uc)/dt + ...
-                fdudtNosource(xc,usStarNew,hleft,hright,ileft,iright,hc,omega,a)*0.5+...
-                fdudtOnlysource(xc,uc*1+usStarNew,hleft,hright,ileft,iright,hc,omega,a)*0.5+...
-                fdudtOnlysource(xc,us,hleft,hright,ileft,iright,hc,omega,a)*(+0.5)+...
-                (us - usStarNew)/dt * 1+...
-                (fluxDiffUstarNew * 0)...
-                );
+                @(uc) fdudtNosource(xc,uc + usStarNew*0,hleft,hright,ileft,iright,hc,omega,a)*0.5 + (- uc)/dt + ...
+                fdudtNosource(xc,usStarFMean(us,dt),hleft,hright,ileft,iright,hc,omega,a)+...
+                fdudtOnlysource(xc,uc,hleft,hright,ileft,iright,hc,omega,a)*0.5+...
+                0);
             usnew = vsnew + usStarNew;
             %Back2
         case -21
@@ -265,7 +265,7 @@ for iter = 1:iterEnd
 %     fprintf('Energy Err: %.3e\n', 1-energy/ energy0);
     if(mod(iter,see) == 0 || iter == iterEnd)
         figure(111);
-        plot(xc,us(1,:));
+        plot(xc,us(1,:),xc,us(2,:));
         ylim([-1,1]);
         drawnow;
     end
@@ -297,8 +297,8 @@ uright = us + aR + bR .* (hc/2) + cR.*(hc/2).^2;
 %
 
 % 0th
-% uleft = us;
-% uright = us;
+uleft = us;
+uright = us;
 
 fleft_uleft = uright(:,ileft);
 fleft_uright = uleft;
@@ -395,16 +395,23 @@ function uNew = CFLNewtonSolve(us,hc,a,...
 N = size(us,2);
 dtau = CFLin * hc/abs(a);
 dtau = [dtau;dtau];
-innerMax = 10000000;
+innerMax = 1000;
 innerTh = 1e-3;
 uNew = us;
+
 
 fprintf("\ninnerSolve: \n");
 for iter = 1:innerMax
     A = getJacobi(uNew);
-    mat = A * alphaDiag + spdiags(1./dtau(:), 0,N*2,N*2) + speye(N*2,N*2)*(1/dt);
-    rhs = getRHS(uNew);
-    du = reshape(mat\rhs(:),size(uNew));
+    [A_L,A_U,A_D] = bLUD(A,2);
+    PreDiag = full(sum(abs(A_L+A_U+A_D*2),2));
+    mat = A * alphaDiag + spdiags(1./dtau(:) + PreDiag(:), 0,N*2,N*2) + speye(N*2,N*2)*(1/dt);
+    rhs = getRHS(uNew) - 0*(uNew - us).*(1./dtau+reshape(PreDiag,size(dtau)));
+%     du = reshape(mat\rhs(:),size(uNew));
+    du = bLUSGS_naive(mat,rhs,2);
+    
+    
+    
     uNew = uNew + du;
     
     res = max(abs(du(:)));
@@ -412,6 +419,9 @@ for iter = 1:innerMax
         res0 = res;
     end
     resr = res/res0;
+    if(hasInfNaN(uNew))
+       error('diverge'); 
+    end
     fprintf("resrInner %d: %.3e\n", iter, resr);
     if(resr < innerTh)
         break;
@@ -456,6 +466,9 @@ for iter = 1:innerMax
         res0 = res;
     end
     resr = res/res0;
+    if(hasInfNaN(uNew))
+       error('diverge'); 
+    end
     fprintf("resrInner %d: %.3e\n", iter, resr);
     if(resr < innerTh)
         break;
