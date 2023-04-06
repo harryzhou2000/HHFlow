@@ -1,0 +1,25 @@
+MEX {
+	global:
+		mexFunction;
+		mexfilerequiredapiversion;
+		emlrtMexFcnProperties;
+		bLUSGS_naive_initialize;
+		bLUSGS_naive_terminate;
+		bLUSGS_naive_atexit;
+		bLUSGS_naive;
+		emxEnsureCapacity_boolean_T;
+		emxEnsureCapacity_real_T;
+		c_emxInitStruct_coder_internal_;
+		emxInit_boolean_T;
+		emxFree_boolean_T;
+		emxInit_int32_T;
+		emxFree_int32_T;
+		emxInit_real_T;
+		emxFree_real_T;
+		c_emxFreeStruct_coder_internal_;
+		emxEnsureCapacity_int32_T;
+		d_emxInitStruct_coder_internal_;
+		d_emxFreeStruct_coder_internal_;
+	local:
+		*;
+};

@@ -9,7 +9,7 @@ tmax = 1;
 %0=backEuler, 1=sdirk4, 2=rk2, 3=AM4
 odeMethod = 0;
 see = 10;
-CFL = 0.05;
+CFL = 0.5;
 CFLin = 1e200;
 Tin = 0.1;
 N = 25 * 2;
@@ -330,9 +330,9 @@ A = sparse(N*2,N*2);
 for i = 1:N
     iL = ileft(i);
     iR = iright(i);
-    JL = 0.5 * ( - eye(2) * a - eye(2) * a) / hc(i);
+    JL = -0.5 * ( - eye(2) * a - eye(2) * a) / hc(i);
     JR = 0.5 * ( - eye(2) * a + eye(2) * a) / hc(i);
-    JC = ([-omega, omega;0, 0] * hc(i) + (0.5 * a + 0.5 * a) *eye(2)) / hc(i);
+    JC = ([-omega, omega;0, 0] * hc(i) + -(0.5 * a + 0.5 * a) *eye(2)) / hc(i);
     
     A(2*i-1:2*i,2*iL-1:2*iL) = JL;
     A(2*i-1:2*i,2*iR-1:2*iR) = JR;
@@ -348,9 +348,9 @@ A = sparse(N*2,N*2);
 for i = 1:N
     iL = ileft(i);
     iR = iright(i);
-    JL = 0.5 * ( - eye(2) * a - eye(2) * a) / hc(i);
-    JR = 0.5 * ( - eye(2) * a + eye(2) * a) / hc(i);
-    JC = ([-omega, omega;0, 0] * hc(i) + (0.5 * a + 0.5 * a) *eye(2)) / hc(i);
+    JL = -0.5 * ( - eye(2) * a - eye(2) * a) / hc(i);
+    JR = -0.5 * ( - eye(2) * a + eye(2) * a) / hc(i);
+    JC = ([-omega, omega;0, 0] * hc(i) + -(0.5 * a + 0.5 * a) *eye(2)) / hc(i);
     
     A(2*i-1:2*i,2*iL-1:2*iL) = JL;
     A(2*i-1:2*i,2*iR-1:2*iR) = JR;
@@ -366,9 +366,9 @@ A = sparse(N*2,N*2);
 for i = 1:N
     iL = ileft(i);
     iR = iright(i);
-    JL = 0.5 * ( - eye(2) * a - eye(2) * a) / hc(i);
-    JR = 0.5 * ( - eye(2) * a + eye(2) * a) / hc(i);
-    JC = (0.5 * a + 0.5 * a) *eye(2) / hc(i);
+    JL = -0.5 * ( - eye(2) * a - eye(2) * a) / hc(i);
+    JR = -0.5 * ( - eye(2) * a + eye(2) * a) / hc(i);
+    JC = -(0.5 * a + 0.5 * a) *eye(2) / hc(i);
     
     A(2*i-1:2*i,2*iL-1:2*iL) = JL;
     A(2*i-1:2*i,2*iR-1:2*iR) = JR;
@@ -402,7 +402,7 @@ uNew = us;
 fprintf("\ninnerSolve: \n");
 for iter = 1:innerMax
     A = getJacobi(uNew);
-    mat = A * alphaDiag + spdiags(1./dtau(:), 0,N*2,N*2) + speye(N*2,N*2)*(1/dt);
+    mat = -A * alphaDiag + spdiags(1./dtau(:), 0,N*2,N*2) + speye(N*2,N*2)*(1/dt);
     rhs = getRHS(uNew);
     du = reshape(mat\rhs(:),size(uNew));
     uNew = uNew + du;

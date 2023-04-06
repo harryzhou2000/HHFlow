@@ -2,20 +2,21 @@ clear;
 
 %1-D linear convection with relaxation
 a = 1;
-omega = 1e10;
+omega = 1e0;
 
 tmax = 1;
     
-%0=backEuler, 1=sdirk4, 2=rk2, 3=AM4
-odeMethod = 4
+%0=backEuler, 1=sdirk4, 2=rk2, 3=AM4 4=BDF4
+odeMethod = -2
 see = 10;
 CFL = 0.5;
-CFLin = 1e200;
+CFLin = 1e1;
 Tin = 0.1;
 N = 25 * 2;
 
 AMOrder = 2;
-BDFOrder = 4;
+BDFOrder = 3;
+SDIRKTYPE = 2;
 
 %%
 
@@ -109,22 +110,26 @@ for iter = 1:iterEnd
             usnew = vsnew + usStarNew;
             %BackEuler
         case -2
-            %Back2 modified
-            usStarF = @(us,dt) [us(2,:) + (us(1,:) - us(2,:)) * exp(-dt*omega);...
-                us(2,:)];
-            usStarFMean = @(us,dt) [us(2,:) + (us(1,:) - us(2,:)) * (1-exp(-dt*omega))/(dt*omega);...
+             %Back2
+            usStarF = @(us,dt) [(us(1,:) - us(2,:)).*exp(-omega*dt) + us(2,:);...
                 us(2,:)];
             usStarNew = usStarF(us,dt);
+            usStarIntF = @(us,dt) [-1/omega*(us(1,:) - us(2,:)).*exp(-omega*dt) + us(2,:)*dt;...
+                us(2,:) * dt];
+            usStarIntNew = usStarIntF(us,dt);
+            usStarInt0 = usStarIntF(us,0);
+            usStarAV = (usStarIntNew - usStarInt0)/dt;
+            
             fluxDiffUstarNew = fdudtNosource(xc,usStarNew,hleft,hright,ileft,iright,hc,omega,a);
-            
-            
+            fluxDiffUstar = fdudtNosource(xc,us,hleft,hright,ileft,iright,hc,omega,a);
+            fluxDiffUstarAV = fdudtNosource(xc,usStarAV,hleft,hright,ileft,iright,hc,omega,a);
             vsnew = CFLNewtonSolve(us * 0,hc,a,...
                 dt,1e3, 1,...
-                @(uc) ApreNosource * 0.5, ...
-                @(uc) fdudtNosource(xc,uc + usStarNew*0,hleft,hright,ileft,iright,hc,omega,a)*0.5 + (- uc)/dt + ...
-                fdudtNosource(xc,usStarFMean(us,dt),hleft,hright,ileft,iright,hc,omega,a)+...
-                fdudtOnlysource(xc,uc,hleft,hright,ileft,iright,hc,omega,a)*0.5+...
-                0);
+                @(uc) Apre * 0.5, ...
+                @(uc) fdudtNosource(xc,uc,hleft,hright,ileft,iright,hc,omega,a)*0.5 + (- uc)/dt + ...
+                fdudtNosource(xc,usStarAV,hleft,hright,ileft,iright,hc,omega,a)+...
+                fdudtOnlysource(xc,uc,hleft,hright,ileft,iright,hc,omega,a)*0.5...
+                );
             usnew = vsnew + usStarNew;
             %Back2
         case -21
@@ -186,7 +191,8 @@ for iter = 1:iterEnd
                 @(u, tnode) fdudt(xc,u,hleft,hright,ileft,iright,hc,omega,a),...
                 @(u) CFLin * [hc;hc]/abs(a), ...
                 @(u) fjacobian(xc,u,hleft,hright,ileft,iright,hc,omega,a), ...
-                dt);
+                dt,...
+            SDIRKTYPE);
             %
         case -4
             % SDIRK4
@@ -236,6 +242,35 @@ for iter = 1:iterEnd
                 @(u) CFLin * [hc;hc]/abs(a), ...
                 @(u) fjacobian(xc,u,hleft,hright,ileft,iright,hc,omega,a), ...
                 dt,uPrevBDF,dtPrevBDF, min(iter, BDFOrder));
+        case 42
+            % BDF2 with precon, and use u v splitting
+            nprev = min(iter, BDFOrder);
+            usStarF = @(us,dt) [us(2,:) + (us(1,:)-us(2,:)) .* exp(-omega*dt);...
+                us(2,:)];
+            dPrecon = ones(size(us));
+            dPrecon(2,:) = 1;
+            if(iter == 1)
+               for i = 1:numel(uPrevBDF)
+                  uPrevBDF{i} = uPrevBDF{i} .* dPrecon(:); 
+               end
+            end
+            ubase = reshape(uPrevBDF{nprev},size(us)) ./ dPrecon;
+            for i = 1:numel(uPrevBDF) % convert u to v
+                uPrevBDF{i} = uPrevBDF{i} - reshape(usStarF(ubase,(nprev-i) * dt),[],1) .* dPrecon(:);
+            end
+            uStarNew = usStarF(ubase,(nprev-0) * dt);
+            [usnew, dtPrevBDF, uPrevBDF] =  ...
+                odeBDFFixed_CFLDamped(reshape(uPrevBDF{1},size(us)),...
+                @(u) fdudt(xc,u./dPrecon+uStarNew,hleft,hright,ileft,iright,hc,omega,a).*dPrecon - ...
+                     fdudtOnlysource(xc,uStarNew,hleft,hright,ileft,iright,hc,omega,a).*dPrecon,...
+                @(u) CFLin * [hc;hc]/abs(a), ...
+                @(u) diag(dPrecon(:))*...
+                    fjacobian(xc,u./dPrecon+uStarNew,hleft,hright,ileft,iright,hc,omega,a)*diag(1./dPrecon(:)), ...
+                dt,uPrevBDF,dtPrevBDF, nprev);
+            usnew = usnew ./ dPrecon + uStarNew;
+            for i = 1:numel(uPrevBDF) % convert v to u
+                uPrevBDF{i} = uPrevBDF{i} + reshape(usStarF(ubase,(nprev-i+1) * dt),[],1) .* dPrecon(:);
+            end
         case -3
             % AM
             usStarF = @(us,dt) [us(1,:) * cos(omega*dt) + us(2,:)/omega*sin(omega*dt);...
@@ -289,7 +324,8 @@ for iter = 1:iterEnd
 %         break;
 %     end
 end
-
+hold on;
+plot(xc,ua(1,:)); hold off;
 fprintf('Err: %.3e\n', sum(hc.*abs(ua(1,:)-us(1,:))));
 
 %%
@@ -345,9 +381,10 @@ A = sparse(N*2,N*2);
 for i = 1:N
     iL = ileft(i);
     iR = iright(i);
-    JL = 0.5 * ( - eye(2) * a - eye(2) * a) / hc(i);
-    JR = 0.5 * ( - eye(2) * a + eye(2) * a) / hc(i);
-    JC = ([-omega, omega;0, 0] * hc(i) + (0.5 * a + 0.5 * a) *eye(2)) / hc(i);
+    JL = -0.5 * ( - eye(2) * a - eye(2) * a) / hc(i);
+    JR = -0.5 * ( - eye(2) * a + eye(2) * a) / hc(i);
+    JC = ([-omega, omega;0, 0] * hc(i) - (0.5 * a + 0.5 * a) *eye(2)) / hc(i);
+% JC = ([-omega, 0;0, -omega] * hc(i) - (0.5 * a + 0.5 * a) *eye(2)) / hc(i);
     
     A(2*i-1:2*i,2*iL-1:2*iL) = JL;
     A(2*i-1:2*i,2*iR-1:2*iR) = JR;
@@ -363,9 +400,9 @@ A = sparse(N*2,N*2);
 for i = 1:N
     iL = ileft(i);
     iR = iright(i);
-    JL = 0.5 * ( - eye(2) * a - eye(2) * a) / hc(i);
-    JR = 0.5 * ( - eye(2) * a + eye(2) * a) / hc(i);
-    JC = ([-omega, omega;0, 0] * hc(i) + (0.5 * a + 0.5 * a) *eye(2)) / hc(i);
+    JL = -0.5 * ( - eye(2) * a - eye(2) * a) / hc(i);
+    JR = -0.5 * ( - eye(2) * a + eye(2) * a) / hc(i);
+    JC = ([-omega, omega;0, 0] * hc(i) + -(0.5 * a + 0.5 * a) *eye(2)) / hc(i);
     
     A(2*i-1:2*i,2*iL-1:2*iL) = JL;
     A(2*i-1:2*i,2*iR-1:2*iR) = JR;
@@ -381,9 +418,9 @@ A = sparse(N*2,N*2);
 for i = 1:N
     iL = ileft(i);
     iR = iright(i);
-    JL = 0.5 * ( - eye(2) * a - eye(2) * a) / hc(i);
-    JR = 0.5 * ( - eye(2) * a + eye(2) * a) / hc(i);
-    JC = (0.5 * a + 0.5 * a) *eye(2) / hc(i);
+    JL = -0.5 * ( - eye(2) * a - eye(2) * a) / hc(i);
+    JR = -0.5 * ( - eye(2) * a + eye(2) * a) / hc(i);
+    JC = -(0.5 * a + 0.5 * a) *eye(2) / hc(i);
     
     A(2*i-1:2*i,2*iL-1:2*iL) = JL;
     A(2*i-1:2*i,2*iR-1:2*iR) = JR;
@@ -420,7 +457,7 @@ for iter = 1:innerMax
     A = getJacobi(uNew);
     [A_L,A_U,A_D] = bLUD(A,2);
     PreDiag = full(sum(abs(A_L+A_U+A_D*2),2));
-    mat = A * alphaDiag + spdiags(1./dtau(:) + PreDiag(:), 0,N*2,N*2) + speye(N*2,N*2)*(1/dt);
+    mat = -A * alphaDiag + spdiags(1./dtau(:) + PreDiag(:), 0,N*2,N*2) + speye(N*2,N*2)*(1/dt);
     rhs = getRHS(uNew) - 0*(uNew - us).*(1./dtau+reshape(PreDiag,size(dtau)));
 %     du = reshape(mat\rhs(:),size(uNew));
     du = bLUSGS_naive(mat,rhs,2); % LUSGS version

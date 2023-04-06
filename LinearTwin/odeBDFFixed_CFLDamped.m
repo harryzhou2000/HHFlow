@@ -8,6 +8,8 @@ N = numel(u);
 maxiter= 100;
 innerTh = 1e-3;
 
+block_size = usize(1);
+
 for ip = 1:(nprev-1)
    assert(dtPrev(ip) == dt);
 end
@@ -30,12 +32,18 @@ for iter = 1:maxiter
     end
     
     J = fjacobian(reshape(uc,usize));
-    [A_L,A_U,A_D] = bLUD(J,2);
-    dtauIFix = full(sum(abs(A_L+A_U+2*A_D),2))* coefs{nprev}(1);
-    mat = J* coefs{nprev}(1) + spdiags(1./dtau(:)+dtauIFix, 0,N,N) + speye(N,N)*(1/dt);
+    [A_L,A_U,A_D] = bLUD(J,block_size);
+    dtauIFix = full(sum(abs(A_L+A_U+2*A_D),2))* coefs{nprev}(1) *0;
+%     dtauIFix = 2 * abs(rhsc./1); % used in linearConvRelaxationT2, with 1 as scale
+%     max(dtauIFix) %print
+%     dtauIFix = repmat(max(reshape(dtauIFix,usize),[],1),block_size,1) ;
+%     dtauIFix = dtauIFix(:);
+    
+    mat = -J* coefs{nprev}(1) + spdiags(1./dtau(:)+dtauIFix, 0,N,N) + speye(N,N)*(1/dt);
 %     condest(mat)
 %     max(eigs(J))
-            du = mat\rhs;
+%             du = mat\rhs;
+    du = bLUSGS_naive(mat,rhs,block_size);
 %     [matL,matU,matP,matQ] = lu(mat);
 %     duS = matL\(matP*rhs);
 %     du = matQ*(matU\duS);

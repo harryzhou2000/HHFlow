@@ -35,26 +35,33 @@ n
 %% Implicit 
 % n2- n1 = dt R(n2) approx n2 - n1 = dt (dR(n1) (n2 - n1) + R(n1) )
 % (I - dt dR(n1)) dn = dt R(n1)
+
+lams = [];
+
 n = n0;
 dt = 1e-6;
 ns = n0';
 ts = 0;
-for i = 1:2
+for i = 1:10
     nprev = n;
     f0 = oNChem(n,kf,kb,nuf,nub,Ctri,Ntri);
     dn = n * 0;
-    for j = 1:1000
+    for j = 1:100
         f = oNChem(n + dn,kf,kb,nuf,nub,Ctri,Ntri);
         L_RHS = dn - dt * f;
         if j == 1
            resin = norm(L_RHS); 
         end
-        L_JACOBIAN = eye(numel(n)) - dt * doNChem(n + dn,kf,kb,nuf,nub,Ctri,Ntri);
+        J = doNChem(n + dn,kf,kb,nuf,nub,Ctri,Ntri);
+        L_JACOBIAN = eye(numel(n)) - dt * J;
         l = tril(L_JACOBIAN,-1);
         u = triu(L_JACOBIAN,1);
         d = diag(diag(L_JACOBIAN));
-%         dn = dn - L_JACOBIAN\L_RHS;
-        dn = ((d + l)\(-u*dn + L_RHS)) ;
+        dn = dn - L_JACOBIAN\L_RHS;
+%         dn = ((d + l)\(-u*dn + L_RHS)) ;
+
+        eigJ = eig(J);
+        lams(end+1:end+numel(eigJ)) = eigJ;
     end
     
     n = n + dn;
@@ -68,6 +75,39 @@ fprintf("rres - implicit %e\n", res/norm(oN0));
 n
 plot(ts,ns);
 legend(names);
+%%
+plot(lams,'.');
+axis equal;
+%%
+plot(lams,'.');
+xrange = 1e10;
+xlim([-xrange,xrange]);
+axis equal;
+grid on;
+%%
+numsamp = 1e5;
+nsamp = rand(numel(n),numsamp);
+nsamp = nsamp./sum(nsamp,1) .* (rand(1,numsamp)*5 + 0.1);
+lams = nan(size(nsamp));
+for i = 1:size(nsamp,2)
+    J = doNChem(nsamp(:,i),kf,kb,nuf,nub,Ctri,Ntri);
+    eigJ = eig(J);
+    eigJ(abs(eigJ) < max(abs(eigJ))*1e-10) = 0;
+    lams((i-1) * numel(n) + 1:i * numel(n)) = eigJ;
+    
+end
+tanArgUp = abs(imag(lams))./(abs(real(lams))+1e-100);
+[M,I] = max(tanArgUp,[],'all','linear')
+[Iind,Jind] = ind2sub(size(nsamp),I)
+lams(:,Jind)
+%%
+plot(lams(:),'.');
+xrange = 1e10;
+xlim([-xrange,xrange]);
+axis equal;
+grid on;
+
+
 %% Expoential
 % n2- n1 = dt R(n2) approx n2 - n1 = dt (dR(n1) (n2 - n1) + R(n1) )
 % (I - dt dR(n1)) dn = dt R(n1)

@@ -3,3 +3,4 @@
 ChemTestB/codegen
 *.mex*
 *.mat
+*.tmp
