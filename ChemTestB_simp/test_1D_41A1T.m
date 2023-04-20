@@ -2,15 +2,19 @@
 
 % runMode = 0; % 0 for matlab, 1 for mex, 2 for mex + gpu
 %%
-% t = 7340e-9, K = 1e6, sw at 0.025
-Nscale = 10;
+% t = 7340e-9, K = 1e6, sw at 0.025, 23700 at 0.1
+Nscale = 1;
+invertGodunov = 0;
 method = 2;
-N = 2500 * Nscale;
-see = 10;
+odemethod = 1; % 0 for RK2, 1 for trapz
+N = 500 * Nscale;
+see = 1;
 uEst = 1500;
 CFLest = 0.5;
 tmax = 0.3e-4;
-Lmax = 0.25;
+Lmax = 0.05;
+CFLin = 100;
+%%
 
 G.ifrec = 0;
 G.xs = linspace(0,Lmax,N+1);
@@ -30,7 +34,7 @@ G.bndRight = 2; % 1 for wall, 2 for frozen
 
 
 % dt = CFLest * G.hmax / uEst;
-dt = 1e-8 / Nscale;
+dt = 10e-8 / Nscale;
 % niter = round(tmax/uEst/dt);
 niter = round(tmax/dt);
 
@@ -100,24 +104,46 @@ for iter = 1:niter
     if method == 1
         % Method: inserted Crank-Nicolson
         %%%%%%%%%%%%%%%%%%%%%%%%%
-        % use simple
-        duS1 = fsimple_implicit_sourcedt(u,T,G,M,dt/2);
-        duS2 = fsimple_implicit_sourcedt(u+duS1,T,G,M,dt/2);
-        S1  = frhs_source(u + duS1,T,G,M);
-        S2  = frhs_source(u + duS1 + duS2,T,G,M);
-        u_m0 = u + duS1 * 0 + duS2 * 1;
-        %     % use ode
-        %     u_m0 = u + fode_implicit_sourcedt(u,T,G,M,dt);
+        %         % use simple
+        %         duS1 = fsimple_implicit_sourcedt(u,T,G,M,dt/2);
+        %         duS2 = fsimple_implicit_sourcedt(u+duS1,T,G,M,dt/2);
+        %         S1  = frhs_source(u + duS1,T,G,M);
+        %         S2  = frhs_source(u + duS1 + duS2,T,G,M);
+        %         u_m0 = u + duS1 * 0 + duS2 * 1;
+        %             % use ode
+        if invertGodunov == 1
+            u_m0 = u + fode_implicit_sourcedt(u,T,G,M,dt);
+        else
+            u_m0 = u;
+        end
         
         
         %%%%%%%%%%%%%%%%%%%%%%%%%%
+        %         duSource = u_m0 - u;%testaloha
+        %         u_m0 = u;%testaloha
+        if odemethod == 0
+            [T,p, stat] = f_solveT_fit(T,f_getYs(u_m0),u_m0,M.Ms,M.asA, M.asB);
+            dudt =  frhs(u_m0,T,G,M);
+            u_m1 = u_m0 + dudt * dt;
+            [T,p, stat] = f_solveT_fit(T,f_getYs(u_m1),u_m1,M.Ms,M.asA, M.asB);
+            dudt1 = frhs(u_m1,T,G,M)  + (- S2 + frhs_source(u_m1,T,G,M)) * 0;
+            unew = 0.5 * u_m0 + 0.5 * u_m1 + 0.5 * dudt1 * dt;
+        elseif odemethod == 1
+            [T, p, stat] = f_solveT_fit(T,f_getYs(u_m0),u_m0,M.Ms,M.asA, M.asB);
+            unew = f_step_Trapz_F(u_m0, T, G, M, dt, CFLin);
+        else
+            error("");
+        end
         
-        [T,p, stat] = f_solveT_fit(T,f_getYs(u_m0),u_m0,M.Ms,M.asA, M.asB);
-        dudt =  frhs(u_m0,T,G,M);
-        u_m1 = u_m0 + dudt * dt;
-        [T,p, stat] = f_solveT_fit(T,f_getYs(u_m1),u_m1,M.Ms,M.asA, M.asB);
-        dudt1 = frhs(u_m1,T,G,M)  + (- S2 + frhs_source(u_m1,T,G,M)) * 0;
-        unew = 0.5 * u_m0 + 0.5 * u_m1 + 0.5 * dudt1 * dt;
+        if invertGodunov == 0
+            unew = unew + fode_implicit_sourcedt(unew,T,G,M,dt);
+        else
+            
+        end
+        
+        
+        %         unew = unew + duSource;%testaloha
+        
         %     unew = u_m1;
         
         % Method: inserted Crank-Nicolson: split order revert
@@ -134,15 +160,55 @@ for iter = 1:niter
         %     unew = unew_t + duS1 + duS2;
     elseif method == 2
         % Method: explicit
-             [T,p, stat] = f_solveT_fit(T,f_getYs(u),u, M.Ms,M.asA, M.asB);
-             S1 = frhs_source(u,T,G,M);
-             F1 = frhs(u,T,G,M);
-             u1 = u + (S1+F1) * dt;
-             [T,p, stat] = f_solveT_fit(T,f_getYs(u1),u1, M.Ms,M.asA, M.asB);
-             S2 = frhs_source(u1,T,G,M);
-             F2 = frhs(u1,T,G,M);
-             u2 = 0.5 * u + 0.5 * u1 + 0.5 * dt * (S2 + F2);
-             unew = u2;
+        if odemethod == 0
+            [T,p, stat] = f_solveT_fit(T,f_getYs(u),u, M.Ms,M.asA, M.asB);
+            S1 = frhs_source(u,T,G,M) * 0;
+            F1 = frhs(u,T,G,M);
+            u1 = u + (S1+F1) * dt;
+            [T,p, stat] = f_solveT_fit(T,f_getYs(u1),u1, M.Ms,M.asA, M.asB);
+            S2 = frhs_source(u1,T,G,M) * 0;
+            F2 = frhs(u1,T,G,M);
+            u2 = 0.5 * u + 0.5 * u1 + 0.5 * dt * (S2 + F2);
+            unew = u2;
+        elseif odemethod == 1
+            [T,p, stat] = f_solveT_fit(T,f_getYs(u),u, M.Ms,M.asA, M.asB);
+            unew = f_step_Trapz_F(u, T, G, M, dt, CFLin, true);
+        else
+            error("")
+        end
+    elseif method == 3
+        T0 = T;
+        if odemethod == 0
+            [T,p, stat] = f_solveT_fit(T,f_getYs(u),u, M.Ms,M.asA, M.asB);
+            F1 = frhs(u,T,G,M);
+            u1 = u + (F1) * dt;
+            [T,p, stat] = f_solveT_fit(T,f_getYs(u1),u1, M.Ms,M.asA, M.asB);
+            F2 = frhs(u1,T,G,M);
+            u2 = 0.5 * u + 0.5 * u1 + 0.5 * dt * (F2);
+            [T,p, stat] = f_solveT_fit(T,f_getYs(u2),u2, M.Ms,M.asA, M.asB);
+        elseif odemethod == 1
+            u2 = f_step_Trapz_F(u, T, G, M, dt, CFLin);
+            [T,p, stat] = f_solveT_fit(T,f_getYs(u2),u2, M.Ms,M.asA, M.asB);
+            F1 = frhs(u,T0,G,M);
+        else
+            error("")
+        end
+        F3 = frhs(u2,T,G,M);
+        
+        fgetFluxRHS = @(t,iCell) F3(:,iCell) * t/dt + F1(:,iCell) * (dt-t)/dt;
+        
+        unew = u + fode_implicit_sourcedt(u,T0,G,M,dt,fgetFluxRHS);
+    elseif method == 4
+        T0 = T;
+        u2 = f_step_Trapz_F(u, T, G, M, dt, CFLin);
+        [T,p, stat] = f_solveT_fit(T,f_getYs(u2),u2, M.Ms,M.asA, M.asB);
+        F1 = frhs(u,T0,G,M);
+        F3 = frhs(u2,T,G,M);
+        
+        fgetFluxRHS = @(t,iCell) F3(:,iCell) * t/dt + F1(:,iCell) * (dt-t)/dt;
+        
+        unew = u + fode_implicit_sourcedt(u,T0,G,M,dt,fgetFluxRHS);
+        %     unew = u2;
         
     end
     
@@ -286,6 +352,8 @@ switch G.bndRight
 end
 
 end
+
+
 
 
 function dudt_source = frhs_source(u,T,G,M, ilocation)
@@ -462,17 +530,255 @@ end
 
 end
 
-
-function dus = fode_implicit_sourcedt(u,T,G,M,dt)
+function [lambdas,dTau] = fget_lambdas(u,T,G,M, CFL)
+nv = size(u,1);
 nG = size(u,2);
+lambdas = nan(1,nG+1);
+
+Ys = f_getYs(u);
+p = f_DaltonPressureSum(u(1,:),Ys,M.Ms,T);
+gammaM1 = f_gammM1_fit(u(1,:), T, Ys, M.Ms, M.asA, M.asB);
+%     a = sqrt(gammaM1.*p./u(1,:));
+velos = u(2:3,:)./u(1,:);
+
+
+for iFace = 1:nG+1
+    iCellL = max(iFace - 1,1);
+    iCellR = min(iFace, nG);
+    pFace = (p(iCellL) + p(iCellR))/2;
+    gammaM1Face = (gammaM1(iCellL) + gammaM1(iCellR))/2;
+    rhoFace = (u(1,iCellL) + u(1,iCellR))/2;
+    aFace = sqrt((gammaM1Face+1) * pFace / rhoFace);
+    veloFace = (velos(:,iCellL) + velos(:,iCellR))/2;
+    lambdaConvFace = abs(veloFace(1)) + aFace;
+    lambdas(iFace) = lambdaConvFace;
+end
+lambdaCell = lambdas(1:end-1) + lambdas(2:end);
+dTau = CFL * G.hc ./ lambdaCell;
+
+end
+
+function dF = fget_dFluxX_prim(rho,velo,T,Ys,drho,dvelo,dT,dYs,G,M)
+
+
+dustatic = f_ustatic_fit_D(rho,T,Ys,M.Ms,M.asA,M.asB,drho,dT,dYs);
+ustatic = f_ustatic_fit(rho,T,Ys,M.Ms,M.asA,M.asB);
+dp = f_DaltonPressureSum_D(rho,Ys,M.Ms,T,drho,dYs,dT);
+p = f_DaltonPressureSum(rho,Ys,M.Ms,T);
+
+nV = 4 + size(Ys,1) - 1;
+nG = size(Ys,2);
+dF = nan(nV, nG);
+dF(1,:) = rho .* dvelo(1,:) + drho .* velo(1,:);
+dF(2,:) = drho .* velo(1,:) .* velo(1,:) + 2 * rho .* velo(1,:) .* dvelo(1,:);
+dF(3,:) = drho .* velo(1,:) .* velo(2,:) + rho .* dvelo(1,:) .* velo(2,:) + rho .* velo(1,:) .* dvelo(2,:);
+dF(4,:) = (rho.*(ustatic  + 0.5 .* (velo(1,:).^2 + velo(2,:).^2)) + p) .* dvelo(1,:) + ...
+    (drho.*(ustatic  + 0.5 .* (velo(1,:).^2 + velo(2,:).^2))+...
+    rho.*(dustatic  + (velo(1,:).*dvelo(1,:) + velo(2,:).*dvelo(2,:)) + dp)) .* velo(1,:);
+drhoYs = drho.*Ys + dYs.*rho;
+drhoYsU = rho.*Ys.*dvelo(1,:) + drhoYs.*velo(1,:);
+dF(5:end,:) = drhoYsU(1:end-1,:);
+
+end
+
+function u = f_prim2cons(rho,velo,T,Ys,M)
+nV = 4 + size(Ys,1) - 1;
+nG = size(Ys,2);
+u = nan(nV,nG);
+u(1,:) = rho;
+u(2:3,:) = velo .* rho;
+ustatic = f_ustatic_fit(rho,T,Ys,M.Ms,M.asA,M.asB);
+u(4,:) = rho.*(ustatic + 0.5 * sum(velo.^2,1));
+u(5:end,:) = Ys(1:end-1,:) .* rho;
+end
+
+function A = fget_dCons_dPrim(rho,velo,T,Ys, M)
+nV = 4 + size(Ys,1) - 1;
+nG = size(Ys,2);
+nS = size(Ys,1);
+
+A = zeros(nV,nV,nG);
+ustatic = f_ustatic_fit(rho,T,Ys,M.Ms,M.asA,M.asB);
+% dustatic_drho = f_ustatic_fit_D(rho,T,Ys,M.Ms,M.asA,M.asB,ones(size(rho)),zeros(size(T)),zeros(size(Ys)));
+dustatic_drho = 0; %really?
+dustatic_dT = f_ustatic_fit_D(rho,T,Ys,M.Ms,M.asA,M.asB,zeros(size(rho)),ones(size(T)),zeros(size(Ys)));
+dustatic_dY = nan(nS,nG);
+for is = 1:nS
+    dys = zeros(nS,1);
+    dys(is) = 1;
+    dustatic_dY(is,:) = f_ustatic_fit_D(rho,T,Ys,M.Ms,M.asA,M.asB,zeros(size(rho)),zeros(size(T)),repmat(dys,1,nG));
+end
+A(1,1,:) = 1;
+A(2,1,:) = velo(1,:);
+A(2,2,:) = rho;
+A(3,1,:) = velo(2,:);
+A(3,3,:) = rho;
+A(4,1,:) = (ustatic + 0.5 * sum(velo.^2,1)) + dustatic_drho;
+A(4,2:3,:) = rho.*velo;
+A(4,4,:) = dustatic_dT.*rho;
+A(4,5:end,:) = dustatic_dY(1:end-1,:) .* rho;
+for is = 1:nS-1
+    A(is + 4,1,:) = Ys(is,:);
+    A(is + 4,is + 4,:) = rho;
+end
+end
+
+function [drho,dvelo,dT,dYs] = fLUSGS_prim(rho,velo,T,Ys, G, M, rhs, dTau, dt, alphaDiag, lambdas,...
+    ifSource, jSource)
+if nargin <= 11
+    ifSource = false;
+end
+
+nV = 4 + size(Ys,1) - 1;
+nG = size(Ys,2);
+diags = 0.5 * alphaDiag * (lambdas(1:end-1) + lambdas(2:end))./G.hc + 1./dTau + 1/dt;
+
+drho = zeros(1,nG);
+dvelo = zeros(2,nG);
+dT = zeros(1,nG);
+dYs = zeros(size(Ys));
+dCons_dPrim = fget_dCons_dPrim(rho,velo,T,Ys, M);
+
+for iCell = 1:nG
+    iCellL = iCell-1;
+    iCellR = iCell+1;
+    
+    
+    dubuf = rhs(:,iCell);
+    
+    iCellOther = iCellL;
+    if iCellL >= 1
+        dubuf = dubuf - 0.5 * alphaDiag / G.hc(iCell) * ...
+            fget_dFluxX_prim(...
+            rho(:,iCellOther),velo(:,iCellOther),T(:,iCellOther),Ys(:,iCellOther),...
+            drho(:,iCellOther),dvelo(:,iCellOther),dT(:,iCellOther),dYs(:,iCellOther),G,M);
+    end
+    if ifSource
+        jccell = jSource(:,:,iCell);
+        ducell = (eye(size(jccell)) *diags(iCell) + jccell) \  dubuf;
+    else
+        ducell = dubuf / diags(iCell);
+    end
+    dprimcell = dCons_dPrim(:,:,iCell) \ ducell;
+    drho(:,iCell) = dprimcell(1,1);
+    dvelo(:,iCell) = dprimcell(2:3,1);
+    dT(:,iCell) = dprimcell(4,1);
+    dYs(1:end-1,iCell) = dprimcell(5:end,1);
+    dYs(end,iCell) =  - sum(dYs(1:end-1,iCell)); %!!
+    
+end
+
+for iCell = nG:-1:1
+    iCellL = iCell-1;
+    iCellR = iCell+1;
+    
+    
+    dubuf = 0*rhs(:,iCell);
+    
+    iCellOther = iCellR;
+    if iCellR <= nG
+        dubuf = dubuf - 0.5 * alphaDiag / G.hc(iCell) * ...
+            fget_dFluxX_prim(...
+            rho(:,iCellOther),velo(:,iCellOther),T(:,iCellOther),Ys(:,iCellOther),...
+            drho(:,iCellOther),dvelo(:,iCellOther),dT(:,iCellOther),dYs(:,iCellOther),G,M);
+    end
+    
+    if ifSource
+        jccell = jSource(:,:,iCell);
+        ducell = (eye(size(jccell)) *diags(iCell) + jccell) \  dubuf;
+    else
+        ducell = dubuf / diags(iCell);
+    end
+    dprimcell = dCons_dPrim(:,:,iCell) \ ducell;
+    drho(:,iCell) = drho(:,iCell) + dprimcell(1,1);
+    dvelo(:,iCell) = dvelo(:,iCell) + dprimcell(2:3,1);
+    dT(:,iCell) = dT(:,iCell) + dprimcell(4,1);
+    dYs(1:end-1,iCell) = dYs(1:end-1,iCell) + dprimcell(5:end,1);
+    dYs(end,iCell) =  - sum(dYs(1:end-1,iCell)); %!!
+    
+end
+
+
+end
+
+function unew = f_step_Trapz_F(u,T,G,M,dt,CFL, ifsource)
+
+if nargin <= 6
+    ifsource = false;
+end
+
+Ys = f_getYs(u);
+rho = u(1,:);
+velo = u(2:3,:) ./rho;
+
+
+rhs0 = frhs(u,T,G,M);
+if ifsource
+    rhs0 = rhs0 + frhs_source(u,T,G,M);
+end
+
+
+unew = u;
+u0  = u;
+
+for iiter = 1:100
+    
+    [lambdas,dTau] = fget_lambdas(unew,T,G,M, CFL);
+    rhsc = frhs(unew,T,G,M);
+    Jsource = [];
+    if ifsource
+        rhsc = rhsc + frhs_source(unew,T,G,M);
+        Jsource = fjacobians_source(unew, T,G,M);
+    end
+    
+    
+    [drho,dvelo,dT,dYs] = fLUSGS_prim(rho,velo,T,Ys, G, M,...
+        (rhsc + rhs0) * 0.5 + (u0 - unew)/dt, dTau, dt, 0.5, lambdas, ifsource, Jsource);
+    
+    
+    
+    
+    incrho = sum(abs(drho));
+    incvelo = sum(abs(dvelo),'all');
+    incT = sum(abs(dT),'all');
+    incYs = sum(abs(dYs),2);
+    
+    rho = rho + drho;
+    velo = velo + dvelo;
+    T = T + dT;
+    Ys = Ys + dYs;
+    unew = f_prim2cons(rho,velo,T,Ys, M);
+    
+    fprintf('LUSGS inc: [%.4e %.4e %.4e %.4e]\n',incrho,incvelo,incT,sum(incYs));
+    if(iiter ==1)
+        incrho0 = incrho;
+    end
+    if incrho < incrho0 * 1e-3
+        break;
+    end
+    
+end
+
+
+
+end
+
+
+function dus = fode_implicit_sourcedt(u,T,G,M,dt,fadd)
+
+nV = size(u,1);
+nG = size(u,2);
+
+if(nargin < 6)
+    fadd = @(t, iCell) 0;
+end
 
 uc = u;
 [T,~, ~] = f_solveT_fit(T,f_getYs(uc),uc,M.Ms,M.asA, M.asB);
 dus = zeros(size(u));
 
 parfor icell = 1:nG
-    
-    foderhs = @(t,ucc) oderhsSource(ucc, T(icell), G, M, icell);
+    foderhs = @(t,ucc) oderhsSource(ucc, T(icell), G, M, icell) + fadd(t, icell);
     fjcbrhs = @(t,ucc) odejcbSource(ucc, T(icell), G, M, icell);
     
     options = odeset('Jacobian', fjcbrhs, 'RelTol', 1e-3, 'InitialStep', dt/2);
