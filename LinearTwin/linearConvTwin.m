@@ -4,20 +4,22 @@ clear;
 
 a = 1;
 omega = 2*pi * 1e7;
+% override:
+omega = 1e-10;
     
-%0=backEuler, 1=sdirk4, 2=rk2, 3=AM4, 4=BDF
-odeMethod = 12;
+%0=backEuler, 1=sdirk4, 2=rk2, 3=AM4, 4=BDF, 5=HM3
+odeMethod = 4;
 see = 10;
-CFL = 0.5e-0;
-CFLin = 1e200;
+CFL = 0.5e+0;
+CFLin = 1e2; % !!!! for HM3, cant be to small with large outer CFL ?
 Tin = 0.1;
-Tmax = 0.7;
+Tmax = 1;
 N = 25 * 2;
 
 AMOrder = 2;
 BDFOrder = 3;
 SDIRKTYPE = 2;
-
+hermite_alpha = 0.55;
 %%
 
 
@@ -400,6 +402,14 @@ for iter = 1:iterEnd
             for i = 1:numel(uPrevBDF) % convert v to u
                 uPrevBDF{i} = uPrevBDF{i} + reshape(usStarF(ubase,(nprev-i+1) * dt),[],1) .* dPrecon(:);
             end
+        case 5 
+            % Hermite 3:
+            usnew =  ...
+                odeHermite3_CFLDamped(us,...
+                @(u) fdudt(xc,u,hleft,hright,ileft,iright,hc,omega,a),...
+                @(u) CFLin * [hc;hc]/abs(a), ...
+                @(u) fjacobian(xc,u,hleft,hright,ileft,iright,hc,omega,a), ...
+                dt, hermite_alpha);
         otherwise
             error('nosuchcode');
     end
