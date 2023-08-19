@@ -1,7 +1,7 @@
 function unew = ...
     odeHermite3_CFLDamped(u, frhs, fdTau, fjacobian, dt, alpha, masked, jacobianScheme)
 if nargin <= 6
-    masked = 0;   
+    masked = 0;
 end
 if nargin <= 7
     jacobianScheme = 0;
@@ -39,10 +39,10 @@ for iter = 1:maxiter
     dtau = reshape(fdTau(reshape(uc,usize)),[],1);
     [rhs, u_mid] = f_RHS(u, uc, rhs0);
     rhs = (u - uc) / dt + rhs;
-    
-    
-    
-    
+
+
+
+
     J = fjacobian(reshape(uc,usize));
     J_mid = fjacobian(reshape(u_mid,usize));
     [A_L,A_U,A_D] = bLUD(J,block_size);
@@ -54,32 +54,40 @@ for iter = 1:maxiter
     if jacobianScheme == -1
         mat = -(J) *J + spdiags(1./dtau(:) + dtauIFix, 0,N,N) + speye(N,N)*(1/dt);
     end
-    if jacobianScheme > 0
+    if jacobianScheme > 0 && jacobianScheme <= 4
         dampingFact = double(jacobianScheme == 2);
         zero2nd     = double(jacobianScheme == 3);
-        J_A = J * weights(3) + ...
-            (J_mid - spdiags(1./dtau(:) + dtauIFix, 0,N,N) * dampingFact)* (...
-            (J -     spdiags(1./dtau(:) + dtauIFix, 0,N,N) * 0          )...
+        zeroOut     = double(jacobianScheme == 4);
+        J_A = (J   - spdiags(1./dtau(:) + dtauIFix, 0,N,N) )* weights(3)* (1 - zeroOut) + ...
+            (J_mid - spdiags(1./dtau(:) + dtauIFix, 0,N,N) * 1)* (...
+            (J -     spdiags(1./dtau(:) + dtauIFix, 0,N,N) * 0)...
             * coefs(4) * (1-zero2nd) + speye(N,N) * coefs(2)) * weights(2) ;
-        
+
         % numeric
         %     frhsFullCall = @(uc) f_RHS(u, uc, rhs0);
         %     J_A_N = fdiffCenter( frhsFullCall, uc,1e-5);
         %     J_A = J_A_N;
         % numeric end
-        mat = -J_A* 1 + spdiags(1./dtau(:) + dtauIFix, 0,N,N)* weights(3) + speye(N,N)*(1/dt);
+        mat = -J_A + speye(N,N)*(1/dt);
     end
-    
+    if jacobianScheme >= 5
+        % this jacobian scheme only works for alpha near 0.5
+        J_A = coefs(4) * weights(2) * ...
+            (J     + coefs(2)  / coefs(4) * dt               * (speye(N,N)*(1/dt) + spdiags(1./dtau(:) + dtauIFix, 0,N,N)*1) ) *...
+            (J_mid + weights(3)/(coefs(4) * weights(2)) * dt * (speye(N,N)*(1/dt) + spdiags(1./dtau(:) + dtauIFix, 0,N,N)*0) );
+        mat = -J_A;
+    end
+
     %     condest(mat)
     %     max(eigs(J))
     du = mat\rhs;
     %     [matL,matU,matP,matQ] = lu(mat);
     %     duS = matL\(matP*rhs);
     %     du = matQ*(matU\duS);
-    
+
     uc = uc + du;
     res = sum(abs(du(:)));
-    
+
     if(iter == 1)
         res0 = res;
     end
@@ -102,8 +110,8 @@ unew = reshape(unew,usize);
         u_mid = u * coefs(1) + uc * coefs(2) + rhs0 * coefs(3) + rhsc * coefs(4);
         rhs_mid = reshape(frhs(reshape(u_mid,usize)),[],1);
         rhs = rhs0 * weights(1) + rhsc * weights(3) + rhs_mid * weights(2);
-        
-        
+
+
     end
 
 
