@@ -3,15 +3,15 @@ clear;
 %1-D linear convection with osciliations
 
 a = 1;
-omega = 2*pi * 1e7;
+omega = 2*pi * 1e-5;
 % override:
-omega = 1e-10;
+% omega = 1e-10;
     
 %0=backEuler, 1=sdirk4, 2=rk2, 3=AM4, 4=BDF, 5=HM3
-odeMethod = 4;
+odeMethod = 5;
 see = 10;
-CFL = 0.5e+0;
-CFLin = 1e2; % !!!! for HM3, cant be to small with large outer CFL ?
+CFL = 0.5e+2;
+CFLin = 1e100; % !!!! for HM3, cant be to small with large outer CFL ?
 Tin = 0.1;
 Tmax = 1;
 N = 25 * 2;
@@ -19,7 +19,9 @@ N = 25 * 2;
 AMOrder = 2;
 BDFOrder = 3;
 SDIRKTYPE = 2;
-hermite_alpha = 0.55;
+hermite_alpha = 0.8;
+hermite_mask = 0;
+hermite_jcb = 3;
 %%
 
 
@@ -409,7 +411,7 @@ for iter = 1:iterEnd
                 @(u) fdudt(xc,u,hleft,hright,ileft,iright,hc,omega,a),...
                 @(u) CFLin * [hc;hc]/abs(a), ...
                 @(u) fjacobian(xc,u,hleft,hright,ileft,iright,hc,omega,a), ...
-                dt, hermite_alpha);
+                dt, hermite_alpha,hermite_mask,hermite_jcb);
         otherwise
             error('nosuchcode');
     end
