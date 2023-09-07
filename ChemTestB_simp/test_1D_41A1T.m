@@ -5,7 +5,7 @@
 % t = 7340e-9, K = 1e6, sw at 0.025, 23700 at 0.1
 Nscale = 1;
 invertGodunov = 0;
-method = 2;
+method = 3;
 odemethod = 1; % 0 for RK2, 1 for trapz
 N = 500 * Nscale;
 see = 1;
@@ -34,7 +34,7 @@ G.bndRight = 2; % 1 for wall, 2 for frozen
 
 
 % dt = CFLest * G.hmax / uEst;
-dt = 10e-8 / Nscale;
+dt = 1e-8 / Nscale;
 % niter = round(tmax/uEst/dt);
 niter = round(tmax/dt);
 
