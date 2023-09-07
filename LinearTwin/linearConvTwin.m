@@ -11,7 +11,7 @@ omega = 2*pi * 1e-5;
 odeMethod = 5;
 see = 10;
 CFL = 0.5e+2;
-CFLin = 1e-3; % !!!! for HM3, cant be to small with large outer CFL ?
+CFLin = 1e0; % !!!! for HM3, cant be to small with large outer CFL ?
 Tin = 0.1;
 Tmax = 1;
 N = 25 * 2;
@@ -19,7 +19,7 @@ N = 25 * 2;
 AMOrder = 2;
 BDFOrder = 3;
 SDIRKTYPE = 2;
-hermite_alpha = 0.5;
+hermite_alpha = 0.51;
 hermite_mask = 0;
 hermite_jcb = 5;
 %%

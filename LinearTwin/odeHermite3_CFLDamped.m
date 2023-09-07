@@ -72,7 +72,7 @@ for iter = 1:maxiter
     end
     if jacobianScheme >= 5
         % this jacobian scheme only works for alpha near 0.5
-        J_A = coefs(4) * weights(2) * ...
+        J_A = 2 * coefs(4) * weights(2) * ... % 2 for more damping
             (J     + coefs(2)  / coefs(4) * dt               * (speye(N,N)*(1/dt) + spdiags(1./dtau(:) + dtauIFix, 0,N,N)*1) ) *...
             (J_mid + weights(3)/(coefs(4) * weights(2)) * dt * (speye(N,N)*(1/dt) + spdiags(1./dtau(:) + dtauIFix, 0,N,N)*0) );
         mat = -J_A;
