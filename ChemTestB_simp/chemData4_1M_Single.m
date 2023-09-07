@@ -70,6 +70,6 @@ asB = [asB(:,end),asB(:,1:end-1)];
 
 
 chem_setting.chem = "chem_exp";
-M.pK = 1e4;
+M.pK = 1e6;
 
 
