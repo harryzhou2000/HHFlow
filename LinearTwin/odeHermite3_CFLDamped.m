@@ -11,8 +11,8 @@ end
 usize = size(u);
 u = u(:);
 N = numel(u);
-maxiter= 100;
-innerTh = 1e-3;
+maxiter= 10000;
+innerTh = 1e-4;
 
 block_size = usize(1);
 
@@ -32,73 +32,122 @@ switch masked
         error("no such mask");
 end
 
+if jacobianScheme == 6
+switch masked
+    case 0
+        coefs = [ 2*alpha^3 - 3*alpha^2 + 1, ...
+            - 2*alpha^3 + 3*alpha^2,...
+            (alpha^3 - 2*alpha^2 + alpha), ...
+            (alpha^3 - alpha^2) ];
+    case 1
+        coefs = [ 0, 1, -(alpha^2/2 - alpha + 1/2), (alpha^2/2 - 1/2)]; % mask1
+    case 2
+        coefs = [ alpha^2 - 2*alpha + 1, - alpha^2 + 2*alpha, 0, -(- alpha^2 + alpha)]; %mask3
+    otherwise
+        error("no such mask");
+end
+
+end
+
 
 uc = u;
+um = u;
+% [u --- um --- uc]
 rhs0 = reshape(frhs(reshape(u,usize)),[],1);
 for iter = 1:maxiter
     dtau = reshape(fdTau(reshape(uc,usize)),[],1);
-    [rhs, u_mid] = f_RHS(u, uc, rhs0);
-    rhs = (u - uc) / dt + rhs;
+    if jacobianScheme == 6
+        
+
+        RM = um / dt - u * coefs(1)/dt - uc * coefs(2)/dt + ...
+        (coefs(4)*weights(1)/weights(3) - coefs(3)) * rhs0(:) + ...
+        (coefs(4)*weights(2)/weights(3)) * reshape(frhs(reshape(um,usize)),[],1) + ...
+         coefs(4) / weights(3) / dt * (u - uc);
+        JRM = spdiags(1./dtau(:),0,N,N) + speye(N) / dt + ...
+        (coefs(4)*weights(2)/weights(3)) * fjacobian(reshape(um,usize)); % == dRm/um
+        dum = -JRM \ RM;
+
+        R1 = weights(1) * rhs0(:) + weights(2) * reshape(frhs(reshape(um,usize)),[],1) + ...
+            weights(3) * reshape(frhs(reshape(uc, usize)),[],1) + ...
+        (u - uc) / dt;
+        JR1 = spdiags(1./dtau(:),0,N,N) + speye(N) / dt - weights(3) * fjacobian(reshape(uc,usize)); % == -dR1/u1
+        duc = JR1 \ R1;
+        uc = uc + duc;
+
+        
+        um = um + dum;
+
+        res1 = norm(R1,1);
+        resM = norm(RM,1);
+        res = res1 + resM;
+    else
+        
+        [rhs, u_mid] = f_RHS(u, uc, rhs0);
+        rhs = (u - uc) / dt + rhs;
 
 
 
 
-    J = fjacobian(reshape(uc,usize));
-    J_mid = fjacobian(reshape(u_mid,usize));
-    [A_L,A_U,A_D] = bLUD(J,block_size);
-    dtauIFix = full(sum(abs(A_L+A_U+2*A_D),2)) * 0;
-    %     % ! approx:
-    mat = -J* 1 + spdiags(1./dtau(:) + dtauIFix, 0,N,N) + speye(N,N)*(1/dt);
-    % ! approx 2:
-    % ! note the damping position!!
-    if jacobianScheme == -1
-        mat = -(J) *J + spdiags(1./dtau(:) + dtauIFix, 0,N,N) + speye(N,N)*(1/dt);
+        J = fjacobian(reshape(uc,usize));
+        J_mid = fjacobian(reshape(u_mid,usize));
+        [A_L,A_U,A_D] = bLUD(J,block_size);
+        dtauIFix = full(sum(abs(A_L+A_U+2*A_D),2)) * 0;
+        %     % ! approx:
+        mat = -J* 1 + spdiags(1./dtau(:) + dtauIFix, 0,N,N) + speye(N,N)*(1/dt);
+        % ! approx 2:
+        % ! note the damping position!!
+        if jacobianScheme == -1
+            mat = -(J) *J + spdiags(1./dtau(:) + dtauIFix, 0,N,N) + speye(N,N)*(1/dt);
+        end
+        if jacobianScheme > 0 && jacobianScheme <= 4
+            dampingFact = double(jacobianScheme == 2);
+            zero2nd     = double(jacobianScheme == 3);
+            zeroOut     = double(jacobianScheme == 4);
+            J_A = (J   - spdiags(1./dtau(:) + dtauIFix, 0,N,N) * 0 )* weights(3)* (1 - zeroOut) + ...
+                (J_mid - spdiags(1./dtau(:) + dtauIFix, 0,N,N) * 0)* (...
+                (J -     spdiags(1./dtau(:) + dtauIFix, 0,N,N) * 1)...
+                * coefs(4) * (1-zero2nd) + speye(N,N) * coefs(2)) * weights(2) ;
+
+            % numeric
+            %     frhsFullCall = @(uc) f_RHS(u, uc, rhs0);
+            %     J_A_N = fdiffCenter( frhsFullCall, uc,1e-5);
+            %     J_A = J_A_N;
+            % numeric end
+            mat = -J_A + speye(N,N)*(1/dt);
+        end
+        if jacobianScheme ==5
+            % this jacobian scheme only works for alpha near 0.5
+            J_A = 2 * coefs(4) * weights(2) * ... % 2 for more damping
+                (J     + coefs(2)  / coefs(4) * dt               * (speye(N,N)*(1/dt) + spdiags(1./dtau(:) + dtauIFix, 0,N,N)*1) ) *...
+                (J_mid + weights(3)/(coefs(4) * weights(2)) * dt * (speye(N,N)*(1/dt) + spdiags(1./dtau(:) + dtauIFix, 0,N,N)*0) );
+            mat = -J_A;
+        end
+
+        %     condest(mat)
+        %     max(eigs(J))
+        du = mat\rhs;
+        %     [matL,matU,matP,matQ] = lu(mat);
+        %     duS = matL\(matP*rhs);
+        %     du = matQ*(matU\duS);
+
+        uc = uc + du;
+        res = sum(abs(du(:)));
+
     end
-    if jacobianScheme > 0 && jacobianScheme <= 4
-        dampingFact = double(jacobianScheme == 2);
-        zero2nd     = double(jacobianScheme == 3);
-        zeroOut     = double(jacobianScheme == 4);
-        J_A = (J   - spdiags(1./dtau(:) + dtauIFix, 0,N,N) )* weights(3)* (1 - zeroOut) + ...
-            (J_mid - spdiags(1./dtau(:) + dtauIFix, 0,N,N) * 1)* (...
-            (J -     spdiags(1./dtau(:) + dtauIFix, 0,N,N) * 0)...
-            * coefs(4) * (1-zero2nd) + speye(N,N) * coefs(2)) * weights(2) ;
-
-        % numeric
-        %     frhsFullCall = @(uc) f_RHS(u, uc, rhs0);
-        %     J_A_N = fdiffCenter( frhsFullCall, uc,1e-5);
-        %     J_A = J_A_N;
-        % numeric end
-        mat = -J_A + speye(N,N)*(1/dt);
-    end
-    if jacobianScheme >= 5
-        % this jacobian scheme only works for alpha near 0.5
-        J_A = 2 * coefs(4) * weights(2) * ... % 2 for more damping
-            (J     + coefs(2)  / coefs(4) * dt               * (speye(N,N)*(1/dt) + spdiags(1./dtau(:) + dtauIFix, 0,N,N)*1) ) *...
-            (J_mid + weights(3)/(coefs(4) * weights(2)) * dt * (speye(N,N)*(1/dt) + spdiags(1./dtau(:) + dtauIFix, 0,N,N)*0) );
-        mat = -J_A;
-    end
-
-    %     condest(mat)
-    %     max(eigs(J))
-    du = mat\rhs;
-    %     [matL,matU,matP,matQ] = lu(mat);
-    %     duS = matL\(matP*rhs);
-    %     du = matQ*(matU\duS);
-
-    uc = uc + du;
-    res = sum(abs(du(:)));
 
     if(iter == 1)
         res0 = res;
     end
     resr = res/res0;
     fprintf("   === odeH3 resrInner %d: %.3e\n", iter, resr);
-    if(resr < innerTh || norm(rhs,inf)/norm(rhs,inf) * dt < 1e-16)
+    if(resr < innerTh)
         break;
     end
 end
 
-
+if(iter == maxiter)
+   warning("   === odeH3 not convergent");  
+end
 
 
 unew = uc;
