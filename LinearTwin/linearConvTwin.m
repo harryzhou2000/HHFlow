@@ -10,8 +10,8 @@ omega = 1e-10;
 %0=backEuler, 1=sdirk4, 2=rk2, 3=AM4, 4=BDF, 5=HM3
 odeMethod = 5;
 see = 10;
-CFL = 0.5e-1;
-CFLin = 1e100; % !!!! for HM3, cant be to small with large outer CFL ?
+CFL = 0.5e0;
+CFLin = 1e1; % !!!! for HM3, cant be to small with large outer CFL ?
 Tin = 0.1;
 Tmax = 1;
 N = 25 * 2;
@@ -21,7 +21,7 @@ BDFOrder = 3;
 SDIRKTYPE = 2;
 hermite_alpha = 0.50;
 hermite_mask = 0;
-hermite_jcb = 5;
+hermite_jcb = 6;
 %%
 
 
