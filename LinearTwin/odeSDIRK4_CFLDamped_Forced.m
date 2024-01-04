@@ -1,9 +1,9 @@
-function unew = odeSDIRK4_CFLDamped(u, frhs, fdTau, fjacobian, dt, type)
-usize = size(u);
+function unew = odeSDIRK4_CFLDamped_Forced(u, frhs, fdTau, fjacobian, fForce, dt, type)
 u = u(:);
 N = numel(u);
+usize = size(u);
 maxiter= 100;
-innerTh = 1e-4;
+innerTh = 1e-7;
 
 block_size = usize(1);
 
@@ -81,6 +81,7 @@ for iB = 1:numel(butcherC)
         for jB = 1:iB
             rhs = rhs + rhss{jB} * butcherA(iB,jB);
         end
+        rhs = rhs + fForce(butcherC(iB)) * 1/dt;
         
         J = fjacobian(reshape(uc,usize));
         [A_L,A_U,A_D] = bLUD(J,block_size);

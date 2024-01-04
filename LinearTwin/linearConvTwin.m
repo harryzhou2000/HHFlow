@@ -10,8 +10,8 @@ omega = 1e-10;
 %0=backEuler, 1=sdirk4, 2=rk2, 3=AM4, 4=BDF, 5=HM3
 odeMethod = 5;
 see = 10;
-CFL = 0.5e0;
-CFLin = 1e1; % !!!! for HM3, cant be to small with large outer CFL ?
+CFL = 0.5e2;
+CFLin = 0.5e10; % !!!! for HM3, cant be to small with large outer CFL ?
 Tin = 0.1;
 Tmax = 1;
 N = 25 * 2;
@@ -19,9 +19,9 @@ N = 25 * 2;
 AMOrder = 2;
 BDFOrder = 3;
 SDIRKTYPE = 2;
-hermite_alpha = 0.50;
+hermite_alpha = 0.55;
 hermite_mask = 0;
-hermite_jcb = 6;
+hermite_jcb = 5;
 %%
 
 
@@ -411,7 +411,7 @@ for iter = 1:iterEnd
             % Hermite 3:
             usnew =  ...
                 odeHermite3_CFLDamped(us,...
-                @(u) fdudt(xc,u,hleft,hright,ileft,iright,hc,omega,a),...
+                @(u,ct) fdudt(xc,u,hleft,hright,ileft,iright,hc,omega,a),...
                 @(u) CFLin * [hc;hc]/abs(a), ...
                 @(u) fjacobian(xc,u,hleft,hright,ileft,iright,hc,omega,a), ...
                 dt, hermite_alpha,hermite_mask,hermite_jcb);
@@ -460,10 +460,14 @@ bR = (uRD - uLD)/2./hc;
 cR = (uRD + uLD)./(2*hc.^2);
 uleft = us + aR + bR .* (-hc/2) + cR.*(-hc/2).^2;
 uright = us + aR + bR .* (hc/2) + cR.*(hc/2).^2;
+% 5th
+[uL, uR] = F_interpi_weno5(us', 1e200, 4, 0);
+uleft = uL';
+uright = uR';
 %
 
-% uleft = us; % 0th rec
-% uright = us;
+uleft = us; % 0th rec
+uright = us;
 
 fleft_uleft = uright(:,ileft);
 fleft_uright = uleft;
