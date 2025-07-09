@@ -77,7 +77,7 @@ opTauGU2R2TestC0d5 = subs(opTauGU2R2c2, c2, c2test)
 figure(1); clf; hold on;
 
 testingAs = [2,4,8,16];
-markers= {"+","x","d","*","o"}
+markers= {"+","x","d","*","o"};
 for i = 1:numel(testingAs)
 testingA= testingAs(i);
 opTauGU2R2Test = subs(opTauGU2R2TestC0d5/A, [c2,A], [c2test,testingA])
@@ -100,7 +100,7 @@ posOrig = [0.1100 0.1400];
 set(gca,'FontName','Times New Roman', "FontSize", 12, ...
     "Position", [posOrig, 1- posOrig * 2] ,"PositionConstraint", "innerposition")
 set(gcf,"PaperOrientation", "landscape", "PaperUnits", "inches", "PaperSize", [6,4.5])
-set(gcf,"Position", [[100,100]+toff*[1,0.2],[560, 420]])
+set(gcf,"Position", [[100,100]+toff*[1,0.2],[560, 420]]);
 end
 function L = leg
 L = legend("Interpreter","latex");
