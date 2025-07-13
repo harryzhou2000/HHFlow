@@ -6,12 +6,12 @@ c2 = 0.5;
 Theta = 1;
 beta = 1.4;
 
-% plotOneMap(1, 1, 0.5, 1, 0)
-% plotOneMap(2, 1, 0.5, 1, 0.5)
-% plotOneMap(3, 1, 0.5, 1, 1)
-plotOneMap(1, 1, 0.5, 1, 0, true,1)
-plotOneMap(2, 1, 0.5, 1, 0.5, true,1)
-plotOneMap(3, 1, 0.5, 1, 1, true,1)
+% plotOneMap(1, 1, 0.5, 1, 0);
+% plotOneMap(2, 1, 0.5, 1, 0.5);
+% plotOneMap(3, 1, 0.5, 1, 1);
+plotOneMap(1, 1, 0.5, 1, 0, true,1);
+plotOneMap(2, 1, 0.5, 1, 0.5, true,1);
+plotOneMap(3, 1, 0.5, 1, 1, true,1);
 %%
 figure(777772); clf; cla;
 [rSampM,iSampM, MuReMax, GGAbs] = plotOneMap(77777, 1, 0.5, 1, 0.6, false, 1);
@@ -81,54 +81,72 @@ Thetas =  [1,  1,   1,   1,  0.25,1, 4];
 names = ["U2R2 $c_2=0.5$", "U2R2 $c_2=0.55$",...
     "U2R1 $c_2=0.25$", "U2R1 $c_2=0.5$", ...
     "U3R1 $\Theta=0.25$", "U3R1 $\Theta=1$", "U3R1 $\Theta=4$"];
+search_results = {};
 
-figure(1114); clf; cla; hold on;
-for i = 1:numel(methods)
-[betaTests, mm, gg] = getNumSearch(methods(i), c2s(i), Thetas(i));
-plot(betaTests, mm, lineSpecs(i), "DisplayName", names(i), "MarkerIndices", 1:10:numel(mm));
-end
-L = leg;
-setAx(100)
-grid on;
-ylim([-0.5,0.5]);
-xlim([0,2]);
-xlabel("$\beta$","Interpreter","latex");
-ylabel("$\mu^*_M$","Interpreter","latex");
-exportgraphics(gcf, ...
-            sprintf("HM3_Methods_SearchMu.pdf") ...
-            ,'ContentType','vector','BackgroundColor','none')
+% for i = 1:numel(methods)
+for i = [1]
+[betas, mm, gg, ggArg] = getNumSearch(methods(i), c2s(i), Thetas(i));
+mm = min(mm, 1);
+gg = min(gg, 2);
 
-figure(2114); clf; cla; hold on;
-for i = 1:numel(methods)
-[betaTests, mm, gg] = getNumSearch(methods(i), c2s(i), Thetas(i));
-plot(betaTests, gg, lineSpecs(i), "DisplayName", names(i), "MarkerIndices", 1:10:numel(mm));
-end
-L = leg;
-setAx(200)
-grid on;
-ylim([0,2]);
-xlim([0,2]);
-xlabel("$\beta$","Interpreter","latex");
-ylabel("$G_{GS,M}$","Interpreter","latex");
-exportgraphics(gcf, ...
-            sprintf("HM3_Methods_SearchGGS.pdf") ...
-            ,'ContentType','vector','BackgroundColor','none')
+[mm_min, i_mm_min] = min(mm, [], "all");
+[gg_min, i_gg_min] = min(gg, [], "all");
 
-figure(3114); clf; cla; hold on;
-for i = 1:numel(methods)
-[betaTests, mm, gg, ggArg] = getNumSearch(methods(i), c2s(i), Thetas(i));
-plot(betaTests, ggArg, lineSpecs(i), "DisplayName", names(i), "MarkerIndices", 1:10:numel(mm));
+beta1 = betas{1};
+beta2 = betas{2};
+
+search_results{end+1} = [mm_min, beta1(i_mm_min), beta2(i_mm_min); gg_min, beta1(i_gg_min), beta2(i_gg_min) ];
+
+
+figure(1114 + i); clf; cla; hold on;
+p = surf(betas{1},betas{2}, mm, "LineStyle","none");
+setAx(100 + i * 100);
+figure(2114 + i); clf; cla; hold on;
+p = surf(betas{1},betas{2}, gg, "LineStyle","none");
+setAx(120 + i * 100)
+
+% figure(3114 + i); clf; cla; hold on;
+% plot(betas{1},betas{2}, ggArg, "LineStyle","none");
+% setAx(140 + i * 100)
 end
-L = leg;
-setAx(300)
-grid on;
-ylim([0,pi]);
-xlim([0,2]);
-xlabel("$\beta$","Interpreter","latex");
-ylabel("Arg $G_{GS,M}$","Interpreter","latex");
-exportgraphics(gcf, ...
-            sprintf("HM3_Methods_SearchGGSArg.pdf") ...
-            ,'ContentType','vector','BackgroundColor','none')
+
+% figure(1114);
+% L = leg;
+% setAx(100)
+% grid on;
+% ylim([-0.5,0.5]);
+% xlim([0,2]);
+% xlabel("$\beta$","Interpreter","latex");
+% ylabel("$\mu^*_M$","Interpreter","latex");
+% exportgraphics(gcf, ...
+%             sprintf("HM3_Methods_SearchMu_Extended.pdf") ...
+%             ,'ContentType','vector','BackgroundColor','none')
+% 
+% 
+% figure(2114);
+% L = leg;
+% setAx(200)
+% grid on;
+% ylim([0,2]);
+% xlim([0,2]);
+% xlabel("$\beta$","Interpreter","latex");
+% ylabel("$G_{GS,M}$","Interpreter","latex");
+% exportgraphics(gcf, ...
+%             sprintf("HM3_Methods_SearchGGS_Extended.pdf") ...
+%             ,'ContentType','vector','BackgroundColor','none')
+% 
+% 
+% figure(3114);
+% L = leg;
+% setAx(300)
+% grid on;
+% ylim([0,pi]);
+% xlim([0,2]);
+% xlabel("$\beta$","Interpreter","latex");
+% ylabel("Arg $G_{GS,M}$","Interpreter","latex");
+% exportgraphics(gcf, ...
+%             sprintf("HM3_Methods_SearchGGSArg_Extended.pdf") ...
+%             ,'ContentType','vector','BackgroundColor','none')
 
 %%
 function [rSampM,iSampM, MuReMax, GGAbs] = plotOneMap(fig, method, c2, Theta, beta, draw, type)
@@ -140,9 +158,16 @@ if (~exist("type", "var"))
     type  = 0;
 end
 
+if numel(beta) == 1
+    beta = [beta, 0, 1];
+
+else
+    assert(numel(beta) == 3, "need 1 or 3 dim beta!");
+end
 
 [a0, a1, a2, b1,b2,b3, d1,d2] = f_getDITR(method, c2, Theta);
-P = [1 beta; 0 1];
+P = [1,                beta(1);...
+    beta(2) * beta(3), 1 * beta(3)];
 
 A = P * [-1, a2; 0, -1];
 B = P * [0, d2; b2, b3];
@@ -188,11 +213,11 @@ setAx(fig * 100 + 500);
 if draw
     if(type == 0)
         exportgraphics(gcf, ...
-            sprintf("HM3_Method%d_C%g_Theta%g_Beta%g_TauMu.pdf", method, c2, Theta, beta) ...
+            sprintf("HM3_Method%d_C%g_Theta%g_Beta%g_%g_%g_TauMu.pdf", method, c2, Theta, beta) ...
             ,'ContentType','vector','BackgroundColor','none')
     else
         exportgraphics(gcf, ...
-            sprintf("HM3_Method%d_C%g_Theta%g_Beta%g_GGS.pdf", method, c2, Theta, beta) ...
+            sprintf("HM3_Method%d_C%g_Theta%g_Beta%g_%g_%g_GGS.pdf", method, c2, Theta, beta) ...
             ,'ContentType','vector','BackgroundColor','none')
     end
 end
@@ -202,9 +227,15 @@ end
 
 
 % title(sprintf("c_2 = %.1g", alphatest))
-function [betaTests, mm, gg, ggArg] = getNumSearch(method, c2, Theta)
+function [betaOut, mm, gg, ggArg] = getNumSearch(method, c2, Theta, beta3)
 
+useGPU = true;
 
+if nargin < 4
+    beta3 = 1.0;
+end
+
+% SAMPLING ZETA (MU)
 test_range = 10;
 rSamp = linspace(-test_range,0,101);
 rSamp1 = linspace(-test_range,test_range,201);
@@ -222,18 +253,34 @@ zSamps = [0;zSampM(:); farSamps(:)];
 zSamps1 = [zSampM1(:)];
 % plot(zSamps,".")
 
-betaTests = linspace(0,2,201);
-mm = nan(size(betaTests));
-gg = nan(size(betaTests));
-ggArg = nan(size(betaTests));
+% SAMPLING BETA
+betaTests = linspace(0,2,101);
+beta1Tests = linspace(-1,1,101);
 
-for i = 1:numel(betaTests)
+[betaM, beta1M] = meshgrid(betaTests, beta1Tests);
 
-    beta = betaTests(i);
+betaOut = {betaM, beta1M};
 
-    [a0, a1, a2, b1,b2,b3, d1,d2] = f_getDITR(method, c2, Theta);
-    P = [1 beta; 0 1];
 
+mm = nan(size(betaM));
+gg = nan(size(betaM));
+ggArg = nan(size(betaM));
+
+[a0, a1, a2, b1,b2,b3, d1,d2] = f_getDITR(method, c2, Theta);
+
+if useGPU
+    betaM = gpuArray(betaM);
+    beta1M = gpuArray(beta1M);
+    zSamps = gpuArray(zSamps);
+    zSamps1 = gpuArray(zSamps1);
+end
+
+for i = 1:numel(betaM)
+
+    beta = betaM(i);
+    beta1 = beta1M(i);
+
+    P = [1, beta; beta1 * beta3, 1 * beta3];
     A = P * [-1, a2; 0, -1];
     B = P * [0, d2; b2, b3];
     MuReMax = fMuAbs(zSamps, A, B);
@@ -244,6 +291,9 @@ for i = 1:numel(betaTests)
     mm(i) = max(MuReMax);
     gg(i) = max(GGSAbs);
     ggArg(i) = max(argsZnStab);
+    if mod(i, 200) == 0
+        fprintf("Search %d / %d\n", i, numel(betaM));
+    end
 end
 
 
